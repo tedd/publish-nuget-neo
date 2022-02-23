@@ -1,0 +1,51 @@
+name: "Publish to NuGet"
+description: "New implementation of Publish to NuGet. Drop-in compatible."
+
+inputs:
+  PROJECT_FILE_PATH:
+    description: "Project directory"
+    required: true
+  NUGET_KEY:
+    description: "NuGet API keu to authenticate on NuGet server"
+    required: true
+  NUGET_SOURCE:
+    description: "URL to NuGet server."
+    required: true
+    default: "https://api.nuget.org"
+  INCLUDE_SYMBOLS:
+    description: "Add symbols to NuGet package."
+    required: false
+    default: false
+  TAG_COMMIT:
+    description: "If commit should be tagged upon successful upload to NuGet"
+    required: false
+    default: false
+  TAG_FORMAT:
+    description: "Name of tag. * will be replaced by version number"
+    required: false
+    default: false
+  REBUILD_PROJECT:
+    description: "Rebuild project in release mode? (default: true)"
+    required: false
+    default: true
+  
+
+outputs:
+    VERSION:
+        description: "Version of the associated git tag"
+    PACKAGE_NAME:
+        description: "Name of the NuGet package generated"
+    PACKAGE_PATH:
+        description: "Path to the generated NuGet package"
+    SYMBOLS_PACKAGE_NAME:
+        description: "Name of the symbols package generated"
+    SYMBOLS_PACKAGE_PATH:
+        description: "Path to the generated symbols package"
+
+runs:
+    using: "node16"
+    main: "action.js"
+
+branding:
+    icon: package
+    color: blue
