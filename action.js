@@ -13,7 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
  * IMPORTANT: Only modify action.ts. Any modifications to action.js will be lost.
  */
 // NodeJS modules we will need
-const os = require("os"), fs = require("fs"), path = require("path"), util = require('util'), https = require("https"), execFile = require("child_process").execFile, validUrl = require('valid-url');
+const os = require("os"), fs = require("fs"), path = require("path"), util = require('util'), https = require("https"), child_process = require("child_process"), execFile = require("child_process").execFile, spawnSync = require("child_process").spawnSync, spawn = require("child_process").spawn, validUrl = require('valid-url');
 class Action {
     constructor() {
         this._projectFilePath = process.env.INPUT_PROJECT_FILE_PATH || process.env.PROJECT_FILE_PATH;
@@ -70,7 +70,7 @@ class Action {
         });
     }
     fail(message, ...optionalParameters) {
-        console.error("ERROR: " + message, optionalParameters);
+        console.error("FATAL ERROR: " + message, optionalParameters);
         throw new Error(message);
     }
     info(message, ...optionalParameters) {
@@ -89,16 +89,51 @@ class Action {
                 logSafeArgs = args;
             this.info(`[executeAsync] Executing command: ${command} ${logSafeArgs.join(" ")}`);
             options = options || {};
-            //options.stdio = [process.stdin, process.stdout, process.stderr];
-            const asyncExe = util.promisify(execFile);
-            const result = yield asyncExe(execFile(command, args, options, (error, stdout, stderr) => {
+            options.stdio = [process.stdin, process.stdout, process.stderr];
+            //const asyncExe = util.promisify(execFile);
+            /* This exits process
+            const result = await asyncExe(command, args, options, (error: ExecFileException | null, stdout: string | Buffer, stderr: string | Buffer) => {
                 if (error)
                     this.fail(error);
+    
                 if (stderr)
-                    process.stderr.write(stderr);
+                    //process.stderr.write(stderr);
+                    console.error(stderr);
+                
                 if (stdout)
-                    process.stdout.write(stdout);
-            }));
+                    //process.stdout.write(stdout);
+                    console.log(stdout);
+            });
+            */
+            //var result = spawnSync(command, args, options);
+            // cmd.stdout.on('data', (data: string) => console.log(data));
+            // cmd.stderr.on('data', (data: string) => console.error(data));
+            // cmd.on('close', (code: any) => {
+            //     console.log(`child process close all stdio with code ${code}`);
+            //   });
+            //   cmd.on('exit', (code: any) => {
+            //     console.log(`child process exited with code ${code}`);
+            //   });
+            return new Promise((resolve, reject) => {
+                var cmd = spawn(command, args, options);
+                // cmd.stdout.on('data', (data:Buffer) => {
+                //     console.log(data.toString());
+                //   });
+                //   cmd.stderr.on('data', (data:any) => {
+                //     console.error(`${data.toString()}`);
+                //   });
+                cmd.on('close', (code) => {
+                    if (code !== 0)
+                        this.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
+                    else
+                        this.info(`[executeAsync] Done executing command: ${command} ${logSafeArgs.join(" ")}.`);
+                    resolve(code);
+                });
+                cmd.on('error', (err) => {
+                    this.fail(err);
+                    reject(err);
+                });
+            });
         });
     }
     /**
@@ -205,7 +240,7 @@ class Action {
         return __awaiter(this, void 0, void 0, function* () {
             this.info(`[packageProjectAsync] Packaging project: \"${this._projectFilePath}\" to "${this._nugetSearchPath}"`);
             // Remove existing packages
-            fs.readdirSync(this._nugetSearchPath).filter((fn) => /\.s?nupkg$/.test(fn)).forEach((fn) => fs.unlinkSync(fn));
+            fs.readdirSync(this._nugetSearchPath).filter((fn) => /\.s?nupkg$/.test(fn)).forEach((fn) => fs.unlinkSync(`${this._nugetSearchPath}/${fn}`));
             // Package new
             let params = ["pack", "-c", "Release"];
             if (this._includeSymbols) {
@@ -223,13 +258,23 @@ class Action {
     publishPackageAsync() {
         return __awaiter(this, void 0, void 0, function* () {
             this.info(`[publishPackageAsync] Publishing package "${this._nugetSearchPath}/*.nupkg"`);
-            let params = ["dotnet", "nuget", "push", `${this._nugetSearchPath}/*.nupkg`, "-s", `${this._nugetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output"];
+            // Set variables
+            const packages = fs.readdirSync(this._nugetSearchPath).filter((fn) => fn.endsWith("nupkg"));
+            const packageFilename = packages.filter((fn) => fn.endsWith(".nupkg"))[0];
+            let params = ["dotnet", "nuget", "push", `${this._nugetSearchPath}/${packageFilename}`, "-s", `${this._nugetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output"];
             if (!this._includeSymbols)
                 params.push("--no-symbols");
             // Separate param array that is safe to log (no nuget key)
             let paramsLogSafe = params.concat(["-k", "NUGET_KEY_HIDDEN"]);
             params = params.concat(["-k", this._nugetKey]);
             yield this.executeAsync("dotnet", params, paramsLogSafe);
+            this.outputVariable("PACKAGE_NAME", packageFilename);
+            this.outputVariable("PACKAGE_PATH", path.resolve(packageFilename));
+            if (this._includeSymbols) {
+                const symbolsFilename = packages.filter((fn) => fn.endsWith(".snupkg"))[0];
+                this.outputVariable("SYMBOLS_PACKAGE_NAME", symbolsFilename);
+                this.outputVariable("SYMBOLS_PACKAGE_PATH", path.resolve(symbolsFilename));
+            }
         });
     }
     gitCommitTagAsync() {

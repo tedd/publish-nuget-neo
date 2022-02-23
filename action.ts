@@ -1,4 +1,4 @@
-import { ExecFileException, ExecFileOptionsWithOtherEncoding } from "child_process";
+import { ExecFileException, SpawnOptionsWithStdioTuple, StdioPipe } from "child_process";
 import { IncomingMessage } from "http";
 import { exit } from "process";
 
@@ -12,7 +12,10 @@ const  os = require("os"),
      path = require("path"),
      util = require('util'),
     https = require("https"),
- execFile = require("child_process").execFile,
+    child_process = require("child_process"),
+    execFile = require("child_process").execFile,
+    spawnSync = require("child_process").spawnSync,
+    spawn = require("child_process").spawn,
  validUrl = require('valid-url');
 
 /* Structure returned from NUGET_SOURCE/v3-flatcontainer/PACKAGE_NAME/index.json */
@@ -91,7 +94,7 @@ class Action {
     }
 
     private fail(message: string|any, ...optionalParameters: any[]): void {
-        console.error("ERROR: " + message, optionalParameters);
+        console.error("FATAL ERROR: " + message, optionalParameters);
         throw new Error(message);
     }
 
@@ -108,24 +111,65 @@ class Action {
         process.stdout.write(`::set-output name=${name}::${value}${os.EOL}`)
     }
 
-    private async executeAsync(command: string, args: string[] = [], logSafeArgs: string[] = null, options: ExecFileOptionsWithOtherEncoding = null): Promise<void> {
+    private async executeAsync(command: string, args: string[] = [], logSafeArgs: string[] = null, options: SpawnOptionsWithStdioTuple<StdioPipe, StdioPipe, StdioPipe> = null): Promise<void> {
         if (logSafeArgs === null)
             logSafeArgs = args;
         this.info(`[executeAsync] Executing command: ${command} ${logSafeArgs.join(" ")}`);
         
-        options = options || <ExecFileOptionsWithOtherEncoding>{};
-        //options.stdio = [process.stdin, process.stdout, process.stderr];
-        const asyncExe = util.promisify(execFile);
-        const result = await asyncExe(execFile(command, args, options, (error: ExecFileException | null, stdout: string | Buffer, stderr: string | Buffer) => {
+        options = options || <SpawnOptionsWithStdioTuple<StdioPipe, StdioPipe, StdioPipe>>{};
+
+        options.stdio = <any>[process.stdin, process.stdout, process.stderr];
+        //const asyncExe = util.promisify(execFile);
+        /* This exits process
+        const result = await asyncExe(command, args, options, (error: ExecFileException | null, stdout: string | Buffer, stderr: string | Buffer) => {
             if (error)
                 this.fail(error);
 
             if (stderr)
-                process.stderr.write(stderr);
+                //process.stderr.write(stderr);
+                console.error(stderr);
             
             if (stdout) 
-                process.stdout.write(stdout);
-        }));
+                //process.stdout.write(stdout);
+                console.log(stdout);
+        });
+        */
+        //var result = spawnSync(command, args, options);
+         
+        // cmd.stdout.on('data', (data: string) => console.log(data));
+        // cmd.stderr.on('data', (data: string) => console.error(data));
+        // cmd.on('close', (code: any) => {
+        //     console.log(`child process close all stdio with code ${code}`);
+        //   });
+          
+        //   cmd.on('exit', (code: any) => {
+        //     console.log(`child process exited with code ${code}`);
+        //   });
+        return new Promise<void>((resolve, reject) => {
+            var cmd = spawn(command, args, options);
+
+            // cmd.stdout.on('data', (data:Buffer) => {
+            //     console.log(data.toString());
+            //   });
+              
+            //   cmd.stderr.on('data', (data:any) => {
+            //     console.error(`${data.toString()}`);
+            //   });
+              
+              cmd.on('close', (code:any) => {
+                if (code !== 0)
+                    this.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
+                else
+                    this.info(`[executeAsync] Done executing command: ${command} ${logSafeArgs.join(" ")}.`);
+                resolve(code);
+              });
+              cmd.on('error', (err:any) => {
+                this.fail(err);
+                reject(err);
+              });
+        });
+
+        
     }
 
     /**
@@ -247,7 +291,7 @@ class Action {
         this.info(`[packageProjectAsync] Packaging project: \"${this._projectFilePath}\" to "${this._nugetSearchPath}"`);
 
         // Remove existing packages
-        fs.readdirSync(this._nugetSearchPath).filter((fn:string) => /\.s?nupkg$/.test(fn)).forEach((fn:string) => fs.unlinkSync(fn))
+        fs.readdirSync(this._nugetSearchPath).filter((fn:string) => /\.s?nupkg$/.test(fn)).forEach((fn:string) => fs.unlinkSync(`${this._nugetSearchPath}/${fn}`))
 
         // Package new
         let params = ["pack", "-c", "Release"];
@@ -267,7 +311,12 @@ class Action {
 
     private async publishPackageAsync(): Promise<void> {
         this.info(`[publishPackageAsync] Publishing package "${this._nugetSearchPath}/*.nupkg"`);
-        let params=["dotnet", "nuget", "push", `${this._nugetSearchPath}/*.nupkg`, "-s", `${this._nugetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output" ];
+
+        // Set variables
+        const packages = fs.readdirSync(this._nugetSearchPath).filter((fn:string) => fn.endsWith("nupkg"))        
+        const packageFilename = packages.filter((fn:string) => fn.endsWith(".nupkg"))[0];
+        
+        let params=["dotnet", "nuget", "push", `${this._nugetSearchPath}/${packageFilename}`, "-s", `${this._nugetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output" ];
         if (!this._includeSymbols)
             params.push("--no-symbols");
         
@@ -276,6 +325,16 @@ class Action {
         params = params.concat(["-k", this._nugetKey]);
     
         await this.executeAsync("dotnet", params, paramsLogSafe);
+
+        this.outputVariable("PACKAGE_NAME", packageFilename);
+        this.outputVariable("PACKAGE_PATH", path.resolve(packageFilename));
+
+        if (this._includeSymbols) {
+            const symbolsFilename  = packages.filter((fn:string) => fn.endsWith(".snupkg"))[0];           
+            this.outputVariable("SYMBOLS_PACKAGE_NAME", symbolsFilename);
+            this.outputVariable("SYMBOLS_PACKAGE_PATH", path.resolve(symbolsFilename));
+        }
+
     }
 
     private async gitCommitTagAsync(): Promise<void> {
