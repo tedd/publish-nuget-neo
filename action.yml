@@ -32,7 +32,7 @@ inputs:
     required: false
     default: "^\\s*<Version>(.*)<\\/Version>\\s*$"
   VERSION_STATIC:
-      description: Useful with external providers like Nerdbank.GitVersioning where you could for example set it to ${{steps.nbgv.outputs.SemVer2}}. Ignores VERSION_FILE_PATH & VERSION_REGEX. 
+      description: "Useful with external providers like Nerdbank.GitVersioning where you could for example set it to \${{steps.nbgv.outputs.SemVer2}}. Ignores VERSION_FILE_PATH & VERSION_REGEX."
       required: false
   REBUILD_PROJECT:
     description: "Rebuild project in release mode? You may turn this off if you have built project in previous step. (default: true)"
