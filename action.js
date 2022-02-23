@@ -13,7 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
  * IMPORTANT: Only modify action.ts. Any modifications to action.js will be lost.
  */
 // NodeJS modules we will need
-const os = require("os"), fs = require("fs"), path = require("path"), util = require('util'), https = require("https"), execFile = require("child_process").execFile, validUrl = require('valid-url');
+const os = require("os"), fs = require("fs"), path = require("path"), util = require('util'), https = require("https"), execFile = require("child_process").execFile, validUrl = require('valid-url.js');
 class Action {
     constructor() {
         this._projectFilePath = process.env.INPUT_PROJECT_FILE_PATH || process.env.PROJECT_FILE_PATH;

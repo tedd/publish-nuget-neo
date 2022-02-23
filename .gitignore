@@ -1,4 +1,6 @@
-node_modules/
+#node_modules/
 package-lock.json
-actions.js
-actions.js.map
+/node_modules/.bin
+/node_modules/.package-lock.json
+/node_modules/@types/node
+/node_modules/typescript

@@ -13,7 +13,7 @@ const  os = require("os"),
      util = require('util'),
     https = require("https"),
  execFile = require("child_process").execFile,
- validUrl = require('valid-url');
+ validUrl = require('valid-url.js');
 
 /* Structure returned from NUGET_SOURCE/v3-flatcontainer/PACKAGE_NAME/index.json */
 interface IPackageVersions {
