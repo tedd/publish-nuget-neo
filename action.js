@@ -112,7 +112,7 @@ class Action {
         // Check that we have a valid nuget key
         !this._nugetKey && this.fail(`Nuget key must be specified.`);
         // Check that we have a valid nuget source
-        !validUrl.isUrl(this._nugetSource) && this.fail(`Nuget source "${this._nugetSource}" is not a valid URL.`);
+        !validUrl.isUri(this._nugetSource) && this.fail(`Nuget source "${this._nugetSource}" is not a valid URL.`);
         // If we don't have a static package version we'll need to look it up
         if (!this._packageVersion) {
             // Check that we have a valid version file path
