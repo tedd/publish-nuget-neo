@@ -1,24 +1,26 @@
 {
-  "name": "Tedd.GitHubAction.Publish-NuGet",
+  "name": "publish-nuget-neo",
   "version": "1.0.0",
   "description": "GitGub Action for publishing NuGet package",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc --build",
+    "clean": "tsc --build --clean"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tedd/Tedd.GitHubAction.Publish-NuGet.git"
+    "url": "git+https://github.com/tedd/publish-nuget-neo.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/tedd/Tedd.GitHubAction.Publish-NuGet/issues"
+    "url": "https://github.com/tedd/publish-nuget-neo/issues"
   },
-  "homepage": "https://github.com/tedd/Tedd.GitHubAction.Publish-NuGet#readme",
-  "dependencies": {
-    "@types/node": "^17.0.20",
+  "homepage": "https://github.com/tedd/publish-nuget-neo#readme",
+  "devDependencies": {
+    "@types/node": "^17.0.21",
     "typescript": "^4.5.5"
   }
 }

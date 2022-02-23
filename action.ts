@@ -1,5 +1,10 @@
-import { timeStamp } from "console";
+import { ExecFileException, ExecFileOptionsWithOtherEncoding } from "child_process";
+import { IncomingMessage } from "http";
 import { exit } from "process";
+
+/*
+ * IMPORTANT: Only modify action.ts. Any modifications to action.js will be lost.
+ */
 
 // NodeJS modules we will need
 const  os = require("os"),
@@ -83,19 +88,19 @@ class Action {
         console.debug(message, optionalParameters);
     }
 
-    private outputVariable(name: string, value): void {
+    private outputVariable(name: string, value: any): void {
         process.stdout.write(`::set-output name=${name}::${value}${os.EOL}`)
     }
 
-    private async executeAsync(command: string, args: string[] = [], logSafeArgs: string[] = null, options: any = {}): Promise<void> {
+    private async executeAsync(command: string, args: string[] = [], logSafeArgs: string[] = null, options: ExecFileOptionsWithOtherEncoding = null): Promise<void> {
         if (logSafeArgs === null)
             logSafeArgs = args;
         this.info(`[executeAsync] Executing command: ${command} ${logSafeArgs.join(" ")}`);
         
-        options = options || {};
+        options = options || <ExecFileOptionsWithOtherEncoding>{};
         //options.stdio = [process.stdin, process.stdout, process.stderr];
         const asyncExe = util.promisify(execFile);
-        const result = await asyncExe(execFile(command, args, options, (error, stdout, stderr) => {
+        const result = await asyncExe(execFile(command, args, options, (error: ExecFileException | null, stdout: string | Buffer, stderr: string | Buffer) => {
             if (error)
                 this.fail(error);
 
@@ -147,7 +152,7 @@ class Action {
         const url = `${this._nugetSource}/v3-flatcontainer/${this._packageName}/index.json`;
         this.info(`[checkNugetPackageExistsAsync] Checking if nuget package exists on NuGet server: \"${url}\"`);
         return new Promise((packageVersionExists) => {
-            https.get(url, res => {
+            https.get(url, (res: IncomingMessage) => {
                 let data = "";
                 
                 if (res.statusCode == 404) {
@@ -194,7 +199,7 @@ class Action {
         this.info(`[packageProjectAsync] Packaging project: \"${this._projectFilePath}\" to "${this._nugetSearchPath}"`);
 
         // Remove existing packages
-        fs.readdirSync(this._nugetSearchPath).filter(fn => /\.s?nupkg$/.test(fn)).forEach(fn => fs.unlinkSync(fn))
+        fs.readdirSync(this._nugetSearchPath).filter((fn:string) => /\.s?nupkg$/.test(fn)).forEach((fn:string) => fs.unlinkSync(fn))
 
         // Package new
         let params = ["pack", "-c", "Release"];
@@ -208,7 +213,7 @@ class Action {
 
         await this.executeAsync("dotnet", params);
 
-        const packages = fs.readdirSync(this._nugetSearchPath).filter(fn => fn.endsWith("nupkg"))
+        const packages = fs.readdirSync(this._nugetSearchPath).filter((fn:string) => fn.endsWith("nupkg"))
         return packages.join(", ");
     }
 
