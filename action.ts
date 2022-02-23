@@ -274,4 +274,4 @@ class Action {
 }
 
 // Run the action
-await (new Action()).run();
+(new Action()).run();
