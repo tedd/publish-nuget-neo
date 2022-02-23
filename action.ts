@@ -131,7 +131,8 @@ class Action {
     /**
      * Validates the user inputs from GitHub Actions
      */
-    private validateAndPopulateInputs() {
+    private validateAndPopulateInputs(): void {
+
         // Check that we have a valid project file path
         !fs.existsSync(this._projectFilePath)         && this.fail(`Project path "${this._projectFilePath}" does not exist.`);
         !fs.lstatSync(this._projectFilePath).isFile() && this.fail(`Project path "${this._projectFilePath}" must be a directory.`);
@@ -192,7 +193,8 @@ class Action {
      */
     private async checkNugetPackageExistsAsync(packageName: string, version: string): Promise<boolean> {
         const url = `${this._nugetSource}/v3-flatcontainer/${this._packageName}/index.json`;
-        this.info(`[checkNugetPackageExistsAsync] Checking if nuget package exists on NuGet server: \"${url}\"`);
+        this.info(`[checkNugetPackageExistsAsync] Checking if NuGet package exists on NuGet server: \"${url}\"`);
+
         return new Promise((packageVersionExists) => {
             https.get(url, (res: IncomingMessage) => {
                 let data = "";
@@ -200,11 +202,13 @@ class Action {
                 if (res.statusCode == 404) {
                     this.debug(`NuGet server returned HTTP status code ${res.statusCode}: Package "${packageName}" does not exist.`);
                     packageVersionExists(false);
+                    return;
                 }
 
                 if (res.statusCode != 200) {
-                    throw new Error(`NuGet server returned nexpected HTTP status code ${res.statusCode}: ${res.statusMessage}. Assuming failure.`);
+                    throw new Error(`NuGet server returned unexpected HTTP status code ${res.statusCode}: ${res.statusMessage} Assuming failure.`);
                     packageVersionExists(false);
+                    return;
                 }
 
                 res.on('data', chunk => { data += chunk }) 
@@ -216,11 +220,13 @@ class Action {
                     const exists = packages.versions.includes(version);
                     this.debug(`NuGet server returned: ${packages.versions.length} package versions. Package version "${version}" is${exists ? "": " not"} in list.`);
                     packageVersionExists(exists);
+                    return;
                 });
 
                 res.on("error", e => {
                     this.fail(e);
                     packageVersionExists(false);
+                    return;
                 });
             }) 
         })
