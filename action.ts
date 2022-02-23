@@ -32,7 +32,9 @@ class Action {
     private _tagFormat: string;
     private _rebuildProject: boolean;
     private _debug: boolean;
-    
+    private _versionFilePath: string;
+    private _versionRegex: string;
+
     constructor() {
         this._projectFilePath = process.env.INPUT_PROJECT_FILE_PATH || process.env.PROJECT_FILE_PATH;
         this._nugetKey = process.env.INPUT_NUGET_KEY || process.env.NUGET_KEY;
@@ -43,6 +45,9 @@ class Action {
         this._packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
         this._rebuildProject = JSON.parse(process.env.INPUT_REBUILD_PROJECT || process.env.REBUILD_PROJECT);
         this._debug = JSON.parse(process.env.INPUT_DEBUG || process.env.DEBUG);
+        this._packageVersion = process.env.INPUT_VERSION_STATIC || process.env.VERSION_STATIC;
+        this._versionFilePath = process.env.INPUT_VERSION_FILE_PATH || process.env.VERSION_FILE_PATH;
+        this._versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX;
     }
 
     /* Main entry point */
@@ -85,7 +90,8 @@ class Action {
     }
 
     private debug(message: string|any, ...optionalParameters: any[]): void {
-        console.debug(message, optionalParameters);
+        if (this._debug)
+            console.debug(message, optionalParameters);
     }
 
     private outputVariable(name: string, value: any): void {
@@ -126,6 +132,32 @@ class Action {
 
         // Check that we have a valid nuget source
         !validUrl.isUrl(this._nugetSource)     && this.fail(`Nuget source "${this._nugetSource}" is not a valid URL.`);
+
+        // If we don't have a static package version we'll need to look it up
+        if (!this._packageVersion) {
+            // Check that we have a valid version file path
+            !fs.existsSync(this._versionFilePath)         && this.fail(`Version file path "${this._versionFilePath}" does not exist.`);
+            !fs.lstatSync(this._versionFilePath).isFile() && this.fail(`Version file path "${this._versionFilePath}" must be a directory.`);
+            this.debug(`Version file path exists: ${this._versionFilePath}`);
+            
+            // Check that regex is correct
+            let versionRegex: RegExp;
+            try {
+                versionRegex = new RegExp(this._versionRegex, "m");
+            } catch(e) {
+                this.fail(`Version regex "${this._versionRegex}" is not a valid regular expression: ${e.message}`);
+            }
+
+            // Read file content
+            const versionFileContent = fs.readFileSync(this._versionFilePath);
+            const version = versionRegex.exec(versionFileContent)
+
+            if (!version)
+                this.fail(`Unable to find version using regex "${this._versionRegex}" in file "${this._versionFilePath}".`);
+            
+            // Successfully read version
+            this._packageVersion = version[1];
+        }
 
         // Check that we have a valid tag format
         if (this._tagCommit) {

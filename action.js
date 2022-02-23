@@ -53,6 +53,9 @@ define("action", ["require", "exports"], function (require, exports) {
             this._packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
             this._rebuildProject = JSON.parse(process.env.INPUT_REBUILD_PROJECT || process.env.REBUILD_PROJECT);
             this._debug = JSON.parse(process.env.INPUT_DEBUG || process.env.DEBUG);
+            this._packageVersion = process.env.INPUT_VERSION_STATIC || process.env.VERSION_STATIC;
+            this._versionFilePath = process.env.INPUT_VERSION_FILE_PATH || process.env.VERSION_FILE_PATH;
+            this._versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX;
         }
         /* Main entry point */
         Action.prototype.run = function () {
@@ -118,7 +121,8 @@ define("action", ["require", "exports"], function (require, exports) {
             for (var _i = 1; _i < arguments.length; _i++) {
                 optionalParameters[_i - 1] = arguments[_i];
             }
-            console.debug(message, optionalParameters);
+            if (this._debug)
+                console.debug(message, optionalParameters);
         };
         Action.prototype.outputVariable = function (name, value) {
             process.stdout.write("::set-output name=".concat(name, "::").concat(value).concat(os.EOL));
@@ -165,6 +169,28 @@ define("action", ["require", "exports"], function (require, exports) {
             !this._nugetKey && this.fail("Nuget key must be specified.");
             // Check that we have a valid nuget source
             !validUrl.isUrl(this._nugetSource) && this.fail("Nuget source \"".concat(this._nugetSource, "\" is not a valid URL."));
+            // If we don't have a static package version we'll need to look it up
+            if (!this._packageVersion) {
+                // Check that we have a valid version file path
+                !fs.existsSync(this._versionFilePath) && this.fail("Version file path \"".concat(this._versionFilePath, "\" does not exist."));
+                !fs.lstatSync(this._versionFilePath).isFile() && this.fail("Version file path \"".concat(this._versionFilePath, "\" must be a directory."));
+                this.debug("Version file path exists: ".concat(this._versionFilePath));
+                // Check that regex is correct
+                var versionRegex = void 0;
+                try {
+                    versionRegex = new RegExp(this._versionRegex, "m");
+                }
+                catch (e) {
+                    this.fail("Version regex \"".concat(this._versionRegex, "\" is not a valid regular expression: ").concat(e.message));
+                }
+                // Read file content
+                var versionFileContent = fs.readFileSync(this._versionFilePath);
+                var version = versionRegex.exec(versionFileContent);
+                if (!version)
+                    this.fail("Unable to find version using regex \"".concat(this._versionRegex, "\" in file \"").concat(this._versionFilePath, "\"."));
+                // Successfully read version
+                this._packageVersion = version[1];
+            }
             // Check that we have a valid tag format
             if (this._tagCommit) {
                 !this._tagFormat && this.fail("Tag format must be specified.");
@@ -307,20 +333,7 @@ define("action", ["require", "exports"], function (require, exports) {
         };
         return Action;
     }());
-    module.exports = {
-        run: function () { return __awaiter(void 0, void 0, void 0, function () {
-            return __generator(this, function (_a) {
-                switch (_a.label) {
-                    case 0: 
-                    // Run the action
-                    return [4 /*yield*/, (new Action()).run()];
-                    case 1:
-                        // Run the action
-                        _a.sent();
-                        return [2 /*return*/];
-                }
-            });
-        }); }
-    };
+    // Run the action
+    await (new Action()).run();
 });
 //# sourceMappingURL=action.js.map
