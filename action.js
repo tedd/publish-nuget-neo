@@ -13,21 +13,36 @@ Object.defineProperty(exports, "__esModule", { value: true });
  * IMPORTANT: Only modify action.ts. Any modifications to action.js will be lost.
  */
 // NodeJS modules we will need
-const os = require("os"), fs = require("fs"), path = require("path"), util = require('util'), https = require("https"), execFile = require("child_process").execFile, validUrl = require('valid-url.js');
+const os = require("os"), fs = require("fs"), path = require("path"), util = require('util'), https = require("https"), execFile = require("child_process").execFile, validUrl = require('valid-url');
 class Action {
     constructor() {
         this._projectFilePath = process.env.INPUT_PROJECT_FILE_PATH || process.env.PROJECT_FILE_PATH;
         this._nugetKey = process.env.INPUT_NUGET_KEY || process.env.NUGET_KEY;
         this._nugetSource = process.env.INPUT_NUGET_SOURCE || process.env.NUGET_SOURCE;
-        this._includeSymbols = JSON.parse(process.env.INPUT_INCLUDE_SYMBOLS || process.env.INCLUDE_SYMBOLS);
-        this._tagCommit = JSON.parse(process.env.INPUT_TAG_COMMIT || process.env.TAG_COMMIT);
         this._tagFormat = process.env.INPUT_TAG_FORMAT || process.env.TAG_FORMAT;
         this._packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
-        this._rebuildProject = JSON.parse(process.env.INPUT_REBUILD_PROJECT || process.env.REBUILD_PROJECT);
-        this._debug = JSON.parse(process.env.INPUT_DEBUG || process.env.DEBUG);
         this._packageVersion = process.env.INPUT_VERSION_STATIC || process.env.VERSION_STATIC;
         this._versionFilePath = process.env.INPUT_VERSION_FILE_PATH || process.env.VERSION_FILE_PATH;
         this._versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX;
+        let key;
+        let value;
+        try {
+            key = "INCLUDE_SYMBOLS";
+            value = process.env.INPUT_INCLUDE_SYMBOLS || process.env.INCLUDE_SYMBOLS || "false";
+            this._includeSymbols = JSON.parse(value);
+            key = "TAG_COMMIT";
+            value = process.env.INPUT_TAG_COMMIT || process.env.TAG_COMMIT || "false";
+            this._tagCommit = JSON.parse(value);
+            key = "REBUILD_PROJECT";
+            value = process.env.INPUT_REBUILD_PROJECT || process.env.REBUILD_PROJECT || "true";
+            this._rebuildProject = JSON.parse(value);
+            key = "DEBUG";
+            value = process.env.INPUT_DEBUG || process.env.DEBUG || "true";
+            this._debug = JSON.parse(value);
+        }
+        catch (error) {
+            this.fail(`Error parsing variable "${key}" value "${value}": ${error}`);
+        }
     }
     /* Main entry point */
     run() {
