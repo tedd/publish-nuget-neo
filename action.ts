@@ -1,6 +1,7 @@
 import { timeStamp } from "console";
 import { exit } from "process";
 
+// NodeJS modules we will need
 const  os = require("os"),
        fs = require("fs"),
      path = require("path"),
@@ -9,6 +10,7 @@ const  os = require("os"),
  execFile = require("child_process").execFile,
  validUrl = require('valid-url');
 
+/* Structure returned from NUGET_SOURCE/v3-flatcontainer/PACKAGE_NAME/index.json */
 interface IPackageVersions {
     versions: string[];
 }
@@ -23,7 +25,8 @@ class Action {
     private _includeSymbols: boolean;
     private _tagCommit: boolean;
     private _tagFormat: string;
-    private _rebuildProject: boolean = false;
+    private _rebuildProject: boolean;
+    private _debug: boolean;
     
     constructor() {
         this._projectFilePath = process.env.INPUT_PROJECT_FILE_PATH || process.env.PROJECT_FILE_PATH;
@@ -34,17 +37,23 @@ class Action {
         this._tagFormat = process.env.INPUT_TAG_FORMAT || process.env.TAG_FORMAT;
         this._packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
         this._rebuildProject = JSON.parse(process.env.INPUT_REBUILD_PROJECT || process.env.REBUILD_PROJECT);
+        this._debug = JSON.parse(process.env.INPUT_DEBUG || process.env.DEBUG);
     }
 
+    /* Main entry point */
     public async run(): Promise<void> {
-        // Validate and populate inputs
+        // Validate input variables and populate variables if necessary
         this.validateAndPopulateInputs();
         
-        // Check if package exists on NuGet server
+        // Check if package exists on NuGet server.
         const nugetPackageExists = await this.checkNugetPackageExistsAsync(this._packageName, this._packageVersion);
         this.info(`NuGet package "${this._packageName}" version "${this._packageVersion}" does${nugetPackageExists?"":" not"} exists on NuGet server "${this._nugetSource}".`);
-        if (nugetPackageExists)
+        
+        // If package does exist we will stop here.
+        if (nugetPackageExists) {
+            this.info("Will not publish NuGet package because this version already exists on NuGet server.");
             return;
+        }
 
         // Rebuild project if specified
         if (this._rebuildProject)

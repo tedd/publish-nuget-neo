@@ -3,29 +3,33 @@ description: "New implementation of Publish to NuGet. Drop-in compatible."
 
 inputs:
   PROJECT_FILE_PATH:
-    description: "Project directory"
+    description: "Full path to project file. Example: src/MyNuGetProject/MyNuGetProject.csproj"
     required: true
   NUGET_KEY:
-    description: "NuGet API keu to authenticate on NuGet server"
+    description: "NuGet API key to authenticate on NuGet server."
     required: true
   NUGET_SOURCE:
-    description: "URL to NuGet server."
-    required: true
+    description: "URL to NuGet server. (Default: https://api.nuget.org)"
+    required: false
     default: "https://api.nuget.org"
   INCLUDE_SYMBOLS:
-    description: "Add symbols to NuGet package."
+    description: "Add symbols to NuGet package. (Default: false)"
     required: false
     default: false
   TAG_COMMIT:
-    description: "If commit should be tagged upon successful upload to NuGet"
+    description: "If Git commit should be tagged upon successful upload to NuGet. (Default: false)"
     required: false
     default: false
   TAG_FORMAT:
-    description: "Name of tag. * will be replaced by version number"
+    description: "Name of Git tag. * will be replaced by version number. (Default: v*)"
     required: false
-    default: false
+    default: "v*"
   REBUILD_PROJECT:
-    description: "Rebuild project in release mode? (default: true)"
+    description: "Rebuild project in release mode? You may turn this off if you have built project in previous step. (default: true)"
+    required: false
+    default: true
+  DEBUG:
+    description: "Additional debug output during processing (default: true)"
     required: false
     default: true
   
