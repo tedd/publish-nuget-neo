@@ -5,9 +5,8 @@
         "noEmitOnError": true,
         "removeComments": false,
         "sourceMap": true,
-        "target": "es5",
-        "outFile": "action.js",
-        "module": "amd"
+        "target": "es6",
+        "module": "none"
     },
     "include": [ "action.ts" ]
 }

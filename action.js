@@ -1,3 +1,4 @@
+"use strict";
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -7,333 +8,221 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
-var __generator = (this && this.__generator) || function (thisArg, body) {
-    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g;
-    return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
-    function verb(n) { return function (v) { return step([n, v]); }; }
-    function step(op) {
-        if (f) throw new TypeError("Generator is already executing.");
-        while (_) try {
-            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
-            if (y = 0, t) op = [op[0] & 2, t.value];
-            switch (op[0]) {
-                case 0: case 1: t = op; break;
-                case 4: _.label++; return { value: op[1], done: false };
-                case 5: _.label++; y = op[1]; op = [0]; continue;
-                case 7: op = _.ops.pop(); _.trys.pop(); continue;
-                default:
-                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
-                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
-                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
-                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
-                    if (t[2]) _.ops.pop();
-                    _.trys.pop(); continue;
-            }
-            op = body.call(thisArg, _);
-        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
-        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+Object.defineProperty(exports, "__esModule", { value: true });
+/*
+ * IMPORTANT: Only modify action.ts. Any modifications to action.js will be lost.
+ */
+// NodeJS modules we will need
+const os = require("os"), fs = require("fs"), path = require("path"), util = require('util'), https = require("https"), execFile = require("child_process").execFile, validUrl = require('valid-url');
+class Action {
+    constructor() {
+        this._projectFilePath = process.env.INPUT_PROJECT_FILE_PATH || process.env.PROJECT_FILE_PATH;
+        this._nugetKey = process.env.INPUT_NUGET_KEY || process.env.NUGET_KEY;
+        this._nugetSource = process.env.INPUT_NUGET_SOURCE || process.env.NUGET_SOURCE;
+        this._includeSymbols = JSON.parse(process.env.INPUT_INCLUDE_SYMBOLS || process.env.INCLUDE_SYMBOLS);
+        this._tagCommit = JSON.parse(process.env.INPUT_TAG_COMMIT || process.env.TAG_COMMIT);
+        this._tagFormat = process.env.INPUT_TAG_FORMAT || process.env.TAG_FORMAT;
+        this._packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
+        this._rebuildProject = JSON.parse(process.env.INPUT_REBUILD_PROJECT || process.env.REBUILD_PROJECT);
+        this._debug = JSON.parse(process.env.INPUT_DEBUG || process.env.DEBUG);
+        this._packageVersion = process.env.INPUT_VERSION_STATIC || process.env.VERSION_STATIC;
+        this._versionFilePath = process.env.INPUT_VERSION_FILE_PATH || process.env.VERSION_FILE_PATH;
+        this._versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX;
     }
-};
-define("action", ["require", "exports"], function (require, exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    /*
-     * IMPORTANT: Only modify action.ts. Any modifications to action.js will be lost.
+    /* Main entry point */
+    run() {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Validate input variables and populate variables if necessary
+            this.validateAndPopulateInputs();
+            // Check if package exists on NuGet server.
+            const nugetPackageExists = yield this.checkNugetPackageExistsAsync(this._packageName, this._packageVersion);
+            this.info(`NuGet package "${this._packageName}" version "${this._packageVersion}" does${nugetPackageExists ? "" : " not"} exists on NuGet server "${this._nugetSource}".`);
+            // If package does exist we will stop here.
+            if (nugetPackageExists) {
+                this.info("Will not publish NuGet package because this version already exists on NuGet server.");
+                return;
+            }
+            // Rebuild project if specified
+            if (this._rebuildProject)
+                yield this.rebuildProjectAsync();
+            // Package project
+            yield this.packageProjectAsync();
+            // Publish package
+            yield this.publishPackageAsync();
+            // Commit a tag if publish was successful
+            if (this._tagCommit)
+                yield this.gitCommitTagAsync;
+        });
+    }
+    fail(message, ...optionalParameters) {
+        console.error("ERROR: " + message, optionalParameters);
+        throw new Error(message);
+    }
+    info(message, ...optionalParameters) {
+        console.log(message, optionalParameters);
+    }
+    debug(message, ...optionalParameters) {
+        if (this._debug)
+            console.debug(message, optionalParameters);
+    }
+    outputVariable(name, value) {
+        process.stdout.write(`::set-output name=${name}::${value}${os.EOL}`);
+    }
+    executeAsync(command, args = [], logSafeArgs = null, options = null) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (logSafeArgs === null)
+                logSafeArgs = args;
+            this.info(`[executeAsync] Executing command: ${command} ${logSafeArgs.join(" ")}`);
+            options = options || {};
+            //options.stdio = [process.stdin, process.stdout, process.stderr];
+            const asyncExe = util.promisify(execFile);
+            const result = yield asyncExe(execFile(command, args, options, (error, stdout, stderr) => {
+                if (error)
+                    this.fail(error);
+                if (stderr)
+                    process.stderr.write(stderr);
+                if (stdout)
+                    process.stdout.write(stdout);
+            }));
+        });
+    }
+    /**
+     * Validates the user inputs from GitHub Actions
      */
-    // NodeJS modules we will need
-    var os = require("os"), fs = require("fs"), path = require("path"), util = require('util'), https = require("https"), execFile = require("child_process").execFile, validUrl = require('valid-url');
-    var Action = /** @class */ (function () {
-        function Action() {
-            this._projectFilePath = process.env.INPUT_PROJECT_FILE_PATH || process.env.PROJECT_FILE_PATH;
-            this._nugetKey = process.env.INPUT_NUGET_KEY || process.env.NUGET_KEY;
-            this._nugetSource = process.env.INPUT_NUGET_SOURCE || process.env.NUGET_SOURCE;
-            this._includeSymbols = JSON.parse(process.env.INPUT_INCLUDE_SYMBOLS || process.env.INCLUDE_SYMBOLS);
-            this._tagCommit = JSON.parse(process.env.INPUT_TAG_COMMIT || process.env.TAG_COMMIT);
-            this._tagFormat = process.env.INPUT_TAG_FORMAT || process.env.TAG_FORMAT;
-            this._packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
-            this._rebuildProject = JSON.parse(process.env.INPUT_REBUILD_PROJECT || process.env.REBUILD_PROJECT);
-            this._debug = JSON.parse(process.env.INPUT_DEBUG || process.env.DEBUG);
-            this._packageVersion = process.env.INPUT_VERSION_STATIC || process.env.VERSION_STATIC;
-            this._versionFilePath = process.env.INPUT_VERSION_FILE_PATH || process.env.VERSION_FILE_PATH;
-            this._versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX;
+    validateAndPopulateInputs() {
+        // Check that we have a valid project file path
+        !fs.existsSync(this._projectFilePath) && this.fail(`Project path "${this._projectFilePath}" does not exist.`);
+        !fs.lstatSync(this._projectFilePath).isFile() && this.fail(`Project path "${this._projectFilePath}" must be a directory.`);
+        this.debug(`Project path exists: ${this._projectFilePath}`);
+        // Check that we have a valid nuget key
+        !this._nugetKey && this.fail(`Nuget key must be specified.`);
+        // Check that we have a valid nuget source
+        !validUrl.isUrl(this._nugetSource) && this.fail(`Nuget source "${this._nugetSource}" is not a valid URL.`);
+        // If we don't have a static package version we'll need to look it up
+        if (!this._packageVersion) {
+            // Check that we have a valid version file path
+            !fs.existsSync(this._versionFilePath) && this.fail(`Version file path "${this._versionFilePath}" does not exist.`);
+            !fs.lstatSync(this._versionFilePath).isFile() && this.fail(`Version file path "${this._versionFilePath}" must be a directory.`);
+            this.debug(`Version file path exists: ${this._versionFilePath}`);
+            // Check that regex is correct
+            let versionRegex;
+            try {
+                versionRegex = new RegExp(this._versionRegex, "m");
+            }
+            catch (e) {
+                this.fail(`Version regex "${this._versionRegex}" is not a valid regular expression: ${e.message}`);
+            }
+            // Read file content
+            const versionFileContent = fs.readFileSync(this._versionFilePath);
+            const version = versionRegex.exec(versionFileContent);
+            if (!version)
+                this.fail(`Unable to find version using regex "${this._versionRegex}" in file "${this._versionFilePath}".`);
+            // Successfully read version
+            this._packageVersion = version[1];
         }
-        /* Main entry point */
-        Action.prototype.run = function () {
-            return __awaiter(this, void 0, void 0, function () {
-                var nugetPackageExists;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0:
-                            // Validate input variables and populate variables if necessary
-                            this.validateAndPopulateInputs();
-                            return [4 /*yield*/, this.checkNugetPackageExistsAsync(this._packageName, this._packageVersion)];
-                        case 1:
-                            nugetPackageExists = _a.sent();
-                            this.info("NuGet package \"".concat(this._packageName, "\" version \"").concat(this._packageVersion, "\" does").concat(nugetPackageExists ? "" : " not", " exists on NuGet server \"").concat(this._nugetSource, "\"."));
-                            // If package does exist we will stop here.
-                            if (nugetPackageExists) {
-                                this.info("Will not publish NuGet package because this version already exists on NuGet server.");
-                                return [2 /*return*/];
-                            }
-                            if (!this._rebuildProject) return [3 /*break*/, 3];
-                            return [4 /*yield*/, this.rebuildProjectAsync()];
-                        case 2:
-                            _a.sent();
-                            _a.label = 3;
-                        case 3: 
-                        // Package project
-                        return [4 /*yield*/, this.packageProjectAsync()];
-                        case 4:
-                            // Package project
-                            _a.sent();
-                            // Publish package
-                            return [4 /*yield*/, this.publishPackageAsync()];
-                        case 5:
-                            // Publish package
-                            _a.sent();
-                            if (!this._tagCommit) return [3 /*break*/, 7];
-                            return [4 /*yield*/, this.gitCommitTagAsync];
-                        case 6:
-                            _a.sent();
-                            _a.label = 7;
-                        case 7: return [2 /*return*/];
+        // Check that we have a valid tag format
+        if (this._tagCommit) {
+            !this._tagFormat && this.fail(`Tag format must be specified.`);
+            !this._tagFormat.includes("*") && this.fail(`Tag format "${this._tagFormat}" does not contain *.`);
+            this.debug("Valid tag format: %s", this._tagFormat);
+        }
+        if (!this._packageName) {
+            const { groups: { name } } = this._packageName.match(/(?<name>[^\/]+)\.[a-z]+$/i);
+            this._packageName = name;
+            this.debug(`Package name not specified, extracted from PROJECT_FILE_PATH: "${this._packageName}"`);
+        }
+        !this._packageName && this.fail(`Package name must be specified.`);
+        // Where to search for NuGet packages
+        this._nugetSearchPath = path.dirname(this._projectFilePath);
+    }
+    /*
+     * Check NuGet server if package exists and if specified version of that package exists.
+     */
+    checkNugetPackageExistsAsync(packageName, version) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const url = `${this._nugetSource}/v3-flatcontainer/${this._packageName}/index.json`;
+            this.info(`[checkNugetPackageExistsAsync] Checking if nuget package exists on NuGet server: \"${url}\"`);
+            return new Promise((packageVersionExists) => {
+                https.get(url, (res) => {
+                    let data = "";
+                    if (res.statusCode == 404) {
+                        this.debug(`NuGet server returned HTTP status code ${res.statusCode}: Package "${packageName}" does not exist.`);
+                        packageVersionExists(false);
                     }
-                });
-            });
-        };
-        Action.prototype.fail = function (message) {
-            var optionalParameters = [];
-            for (var _i = 1; _i < arguments.length; _i++) {
-                optionalParameters[_i - 1] = arguments[_i];
-            }
-            console.error("ERROR: " + message, optionalParameters);
-            throw new Error(message);
-        };
-        Action.prototype.info = function (message) {
-            var optionalParameters = [];
-            for (var _i = 1; _i < arguments.length; _i++) {
-                optionalParameters[_i - 1] = arguments[_i];
-            }
-            console.log(message, optionalParameters);
-        };
-        Action.prototype.debug = function (message) {
-            var optionalParameters = [];
-            for (var _i = 1; _i < arguments.length; _i++) {
-                optionalParameters[_i - 1] = arguments[_i];
-            }
-            if (this._debug)
-                console.debug(message, optionalParameters);
-        };
-        Action.prototype.outputVariable = function (name, value) {
-            process.stdout.write("::set-output name=".concat(name, "::").concat(value).concat(os.EOL));
-        };
-        Action.prototype.executeAsync = function (command, args, logSafeArgs, options) {
-            if (args === void 0) { args = []; }
-            if (logSafeArgs === void 0) { logSafeArgs = null; }
-            if (options === void 0) { options = null; }
-            return __awaiter(this, void 0, void 0, function () {
-                var asyncExe, result;
-                var _this = this;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0:
-                            if (logSafeArgs === null)
-                                logSafeArgs = args;
-                            this.info("[executeAsync] Executing command: ".concat(command, " ").concat(logSafeArgs.join(" ")));
-                            options = options || {};
-                            asyncExe = util.promisify(execFile);
-                            return [4 /*yield*/, asyncExe(execFile(command, args, options, function (error, stdout, stderr) {
-                                    if (error)
-                                        _this.fail(error);
-                                    if (stderr)
-                                        process.stderr.write(stderr);
-                                    if (stdout)
-                                        process.stdout.write(stdout);
-                                }))];
-                        case 1:
-                            result = _a.sent();
-                            return [2 /*return*/];
+                    if (res.statusCode != 200) {
+                        throw new Error(`NuGet server returned nexpected HTTP status code ${res.statusCode}: ${res.statusMessage}. Assuming failure.`);
+                        packageVersionExists(false);
                     }
+                    res.on('data', chunk => { data += chunk; });
+                    res.on('end', () => {
+                        // We should now have something like: { "versions": [ "1.0.0", "1.0.1" ] }
+                        // Parse JSON and check if the version exists
+                        const packages = JSON.parse(data);
+                        const exists = packages.versions.includes(version);
+                        this.debug(`NuGet server returned: ${packages.versions.length} package versions. Package version "${version}" is${exists ? "" : " not"} in list.`);
+                        packageVersionExists(exists);
+                    });
+                    res.on("error", e => {
+                        this.fail(e);
+                        packageVersionExists(false);
+                    });
                 });
             });
-        };
-        /**
-         * Validates the user inputs from GitHub Actions
-         */
-        Action.prototype.validateAndPopulateInputs = function () {
-            // Check that we have a valid project file path
-            !fs.existsSync(this._projectFilePath) && this.fail("Project path \"".concat(this._projectFilePath, "\" does not exist."));
-            !fs.lstatSync(this._projectFilePath).isFile() && this.fail("Project path \"".concat(this._projectFilePath, "\" must be a directory."));
-            this.debug("Project path exists: ".concat(this._projectFilePath));
-            // Check that we have a valid nuget key
-            !this._nugetKey && this.fail("Nuget key must be specified.");
-            // Check that we have a valid nuget source
-            !validUrl.isUrl(this._nugetSource) && this.fail("Nuget source \"".concat(this._nugetSource, "\" is not a valid URL."));
-            // If we don't have a static package version we'll need to look it up
-            if (!this._packageVersion) {
-                // Check that we have a valid version file path
-                !fs.existsSync(this._versionFilePath) && this.fail("Version file path \"".concat(this._versionFilePath, "\" does not exist."));
-                !fs.lstatSync(this._versionFilePath).isFile() && this.fail("Version file path \"".concat(this._versionFilePath, "\" must be a directory."));
-                this.debug("Version file path exists: ".concat(this._versionFilePath));
-                // Check that regex is correct
-                var versionRegex = void 0;
-                try {
-                    versionRegex = new RegExp(this._versionRegex, "m");
-                }
-                catch (e) {
-                    this.fail("Version regex \"".concat(this._versionRegex, "\" is not a valid regular expression: ").concat(e.message));
-                }
-                // Read file content
-                var versionFileContent = fs.readFileSync(this._versionFilePath);
-                var version = versionRegex.exec(versionFileContent);
-                if (!version)
-                    this.fail("Unable to find version using regex \"".concat(this._versionRegex, "\" in file \"").concat(this._versionFilePath, "\"."));
-                // Successfully read version
-                this._packageVersion = version[1];
+        });
+    }
+    /**
+     * Rebuild the project
+     */
+    rebuildProjectAsync() {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.info(`[rebuildProjectAsync] Rebuilding project: \"${this._projectFilePath}\"`);
+            yield this.executeAsync("dotnet", ["build", "-c", "Release", this._projectFilePath]);
+        });
+    }
+    /**
+     * Package the project
+     */
+    packageProjectAsync() {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.info(`[packageProjectAsync] Packaging project: \"${this._projectFilePath}\" to "${this._nugetSearchPath}"`);
+            // Remove existing packages
+            fs.readdirSync(this._nugetSearchPath).filter((fn) => /\.s?nupkg$/.test(fn)).forEach((fn) => fs.unlinkSync(fn));
+            // Package new
+            let params = ["pack", "-c", "Release"];
+            if (this._includeSymbols) {
+                params.push("--include-symbols");
+                params.push("-p:SymbolPackageFormat=snupkg");
             }
-            // Check that we have a valid tag format
-            if (this._tagCommit) {
-                !this._tagFormat && this.fail("Tag format must be specified.");
-                !this._tagFormat.includes("*") && this.fail("Tag format \"".concat(this._tagFormat, "\" does not contain *."));
-                this.debug("Valid tag format: %s", this._tagFormat);
-            }
-            if (!this._packageName) {
-                var name_1 = this._packageName.match(/(?<name>[^\/]+)\.[a-z]+$/i).groups.name;
-                this._packageName = name_1;
-                this.debug("Package name not specified, extracted from PROJECT_FILE_PATH: \"".concat(this._packageName, "\""));
-            }
-            !this._packageName && this.fail("Package name must be specified.");
-            // Where to search for NuGet packages
-            this._nugetSearchPath = path.dirname(this._projectFilePath);
-        };
-        /*
-         * Check NuGet server if package exists and if specified version of that package exists.
-         */
-        Action.prototype.checkNugetPackageExistsAsync = function (packageName, version) {
-            return __awaiter(this, void 0, void 0, function () {
-                var url;
-                var _this = this;
-                return __generator(this, function (_a) {
-                    url = "".concat(this._nugetSource, "/v3-flatcontainer/").concat(this._packageName, "/index.json");
-                    this.info("[checkNugetPackageExistsAsync] Checking if nuget package exists on NuGet server: \"".concat(url, "\""));
-                    return [2 /*return*/, new Promise(function (packageVersionExists) {
-                            https.get(url, function (res) {
-                                var data = "";
-                                if (res.statusCode == 404) {
-                                    _this.debug("NuGet server returned HTTP status code ".concat(res.statusCode, ": Package \"").concat(packageName, "\" does not exist."));
-                                    packageVersionExists(false);
-                                }
-                                if (res.statusCode != 200) {
-                                    throw new Error("NuGet server returned nexpected HTTP status code ".concat(res.statusCode, ": ").concat(res.statusMessage, ". Assuming failure."));
-                                    packageVersionExists(false);
-                                }
-                                res.on('data', function (chunk) { data += chunk; });
-                                res.on('end', function () {
-                                    // We should now have something like: { "versions": [ "1.0.0", "1.0.1" ] }
-                                    // Parse JSON and check if the version exists
-                                    var packages = JSON.parse(data);
-                                    var exists = packages.versions.includes(version);
-                                    _this.debug("NuGet server returned: ".concat(packages.versions.length, " package versions. Package version \"").concat(version, "\" is").concat(exists ? "" : " not", " in list."));
-                                    packageVersionExists(exists);
-                                });
-                                res.on("error", function (e) {
-                                    _this.fail(e);
-                                    packageVersionExists(false);
-                                });
-                            });
-                        })];
-                });
-            });
-        };
-        /**
-         * Rebuild the project
-         */
-        Action.prototype.rebuildProjectAsync = function () {
-            return __awaiter(this, void 0, void 0, function () {
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0:
-                            this.info("[rebuildProjectAsync] Rebuilding project: \"".concat(this._projectFilePath, "\""));
-                            return [4 /*yield*/, this.executeAsync("dotnet", ["build", "-c", "Release", this._projectFilePath])];
-                        case 1:
-                            _a.sent();
-                            return [2 /*return*/];
-                    }
-                });
-            });
-        };
-        /**
-         * Package the project
-         */
-        Action.prototype.packageProjectAsync = function () {
-            return __awaiter(this, void 0, void 0, function () {
-                var params, packages;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0:
-                            this.info("[packageProjectAsync] Packaging project: \"".concat(this._projectFilePath, "\" to \"").concat(this._nugetSearchPath, "\""));
-                            // Remove existing packages
-                            fs.readdirSync(this._nugetSearchPath).filter(function (fn) { return /\.s?nupkg$/.test(fn); }).forEach(function (fn) { return fs.unlinkSync(fn); });
-                            params = ["pack", "-c", "Release"];
-                            if (this._includeSymbols) {
-                                params.push("--include-symbols");
-                                params.push("-p:SymbolPackageFormat=snupkg");
-                            }
-                            params.push(this._projectFilePath);
-                            params.push("-o");
-                            params.push(this._nugetSearchPath);
-                            return [4 /*yield*/, this.executeAsync("dotnet", params)];
-                        case 1:
-                            _a.sent();
-                            packages = fs.readdirSync(this._nugetSearchPath).filter(function (fn) { return fn.endsWith("nupkg"); });
-                            return [2 /*return*/, packages.join(", ")];
-                    }
-                });
-            });
-        };
-        Action.prototype.publishPackageAsync = function () {
-            return __awaiter(this, void 0, void 0, function () {
-                var params, paramsLogSafe;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0:
-                            this.info("[publishPackageAsync] Publishing package \"".concat(this._nugetSearchPath, "/*.nupkg\""));
-                            params = ["dotnet", "nuget", "push", "".concat(this._nugetSearchPath, "/*.nupkg"), "-s", "".concat(this._nugetSource, "/v3/index.json"), "--skip-duplicate", "--force-english-output"];
-                            if (!this._includeSymbols)
-                                params.push("--no-symbols");
-                            paramsLogSafe = params.concat(["-k", "NUGET_KEY_HIDDEN"]);
-                            params = params.concat(["-k", this._nugetKey]);
-                            return [4 /*yield*/, this.executeAsync("dotnet", params, paramsLogSafe)];
-                        case 1:
-                            _a.sent();
-                            return [2 /*return*/];
-                    }
-                });
-            });
-        };
-        Action.prototype.gitCommitTagAsync = function () {
-            return __awaiter(this, void 0, void 0, function () {
-                var tag;
-                return __generator(this, function (_a) {
-                    switch (_a.label) {
-                        case 0:
-                            tag = this._tagFormat.replace("*", this._packageVersion);
-                            this.info("[gitCommitTagAsync] Creating tag: ".concat(tag));
-                            return [4 /*yield*/, this.executeAsync("git", ["tag", tag])];
-                        case 1:
-                            _a.sent();
-                            return [4 /*yield*/, this.executeAsync("git", ["push", "origin", tag])];
-                        case 2:
-                            _a.sent();
-                            this.outputVariable("VERSION", tag);
-                            return [2 /*return*/];
-                    }
-                });
-            });
-        };
-        return Action;
-    }());
-    // Run the action
-    await (new Action()).run();
-});
+            params.push(this._projectFilePath);
+            params.push("-o");
+            params.push(this._nugetSearchPath);
+            yield this.executeAsync("dotnet", params);
+            const packages = fs.readdirSync(this._nugetSearchPath).filter((fn) => fn.endsWith("nupkg"));
+            return packages.join(", ");
+        });
+    }
+    publishPackageAsync() {
+        return __awaiter(this, void 0, void 0, function* () {
+            this.info(`[publishPackageAsync] Publishing package "${this._nugetSearchPath}/*.nupkg"`);
+            let params = ["dotnet", "nuget", "push", `${this._nugetSearchPath}/*.nupkg`, "-s", `${this._nugetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output"];
+            if (!this._includeSymbols)
+                params.push("--no-symbols");
+            // Separate param array that is safe to log (no nuget key)
+            let paramsLogSafe = params.concat(["-k", "NUGET_KEY_HIDDEN"]);
+            params = params.concat(["-k", this._nugetKey]);
+            yield this.executeAsync("dotnet", params, paramsLogSafe);
+        });
+    }
+    gitCommitTagAsync() {
+        return __awaiter(this, void 0, void 0, function* () {
+            const tag = this._tagFormat.replace("*", this._packageVersion);
+            this.info(`[gitCommitTagAsync] Creating tag: ${tag}`);
+            yield this.executeAsync("git", ["tag", tag]);
+            yield this.executeAsync("git", ["push", "origin", tag]);
+            this.outputVariable("VERSION", tag);
+        });
+    }
+}
+// Run the action
+await (new Action()).run();
 //# sourceMappingURL=action.js.map
