@@ -177,7 +177,7 @@ class Action {
         }
 
         if (!this._packageName) {
-            const { groups:{ name } } = this._packageName.match(/(?<name>[^\/]+)\.[a-z]+$/i);
+            const { groups:{ name } } = this._projectFilePath.match(/(?<name>[^\/]+)\.[a-z]+$/i);
             this._packageName = name;
             this.debug(`Package name not specified, extracted from PROJECT_FILE_PATH: "${this._packageName}"`);
         }
