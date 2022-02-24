@@ -17,13 +17,16 @@ inputs:
     required: false
     default: false
   TAG_COMMIT:
-    description: "If Git commit should be tagged upon successful upload to NuGet. (Default: false)"
+    description: "Current Git commit should be tagged upon successful upload to NuGet. (Default: false)"
     required: false
     default: false
   TAG_FORMAT:
     description: "Name of Git tag. * will be replaced by version number. (Default: v*)"
     required: false
     default: "v*"
+  PACKAGE_NAME:
+    description: "NuGet package name. This is used for checking NuGet server if package version already exists. (Default: name extracted from PROJECT_FILE_PATH)"
+    required: false
   VERSION_FILE_PATH:
     description: "Path file containing version number. (Default: $PROJECT_FILE_PATH)"
     required: false

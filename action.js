@@ -90,38 +90,8 @@ class Action {
             this.info(`[executeAsync] Executing command: ${command} ${logSafeArgs.join(" ")}`);
             options = options || {};
             options.stdio = [process.stdin, process.stdout, process.stderr];
-            //const asyncExe = util.promisify(execFile);
-            /* This exits process
-            const result = await asyncExe(command, args, options, (error: ExecFileException | null, stdout: string | Buffer, stderr: string | Buffer) => {
-                if (error)
-                    this.fail(error);
-    
-                if (stderr)
-                    //process.stderr.write(stderr);
-                    console.error(stderr);
-                
-                if (stdout)
-                    //process.stdout.write(stdout);
-                    console.log(stdout);
-            });
-            */
-            //var result = spawnSync(command, args, options);
-            // cmd.stdout.on('data', (data: string) => console.log(data));
-            // cmd.stderr.on('data', (data: string) => console.error(data));
-            // cmd.on('close', (code: any) => {
-            //     console.log(`child process close all stdio with code ${code}`);
-            //   });
-            //   cmd.on('exit', (code: any) => {
-            //     console.log(`child process exited with code ${code}`);
-            //   });
             return new Promise((resolve, reject) => {
                 var cmd = spawn(command, args, options);
-                // cmd.stdout.on('data', (data:Buffer) => {
-                //     console.log(data.toString());
-                //   });
-                //   cmd.stderr.on('data', (data:any) => {
-                //     console.error(`${data.toString()}`);
-                //   });
                 cmd.on('close', (code) => {
                     if (code !== 0)
                         this.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
@@ -251,16 +221,14 @@ class Action {
             params.push("-o");
             params.push(this._nugetSearchPath);
             yield this.executeAsync("dotnet", params);
-            const packages = fs.readdirSync(this._nugetSearchPath).filter((fn) => fn.endsWith("nupkg"));
-            return packages.join(", ");
         });
     }
     publishPackageAsync() {
         return __awaiter(this, void 0, void 0, function* () {
-            this.info(`[publishPackageAsync] Publishing package "${this._nugetSearchPath}/*.nupkg"`);
-            // Set variables
+            // Find files
             const packages = fs.readdirSync(this._nugetSearchPath).filter((fn) => fn.endsWith("nupkg"));
             const packageFilename = packages.filter((fn) => fn.endsWith(".nupkg"))[0];
+            this.info(`[publishPackageAsync] Publishing package "${this._nugetSearchPath}/${packageFilename}"`);
             let params = ["dotnet", "nuget", "push", `${this._nugetSearchPath}/${packageFilename}`, "-s", `${this._nugetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output"];
             if (!this._includeSymbols)
                 params.push("--no-symbols");
@@ -268,6 +236,7 @@ class Action {
             let paramsLogSafe = params.concat(["-k", "NUGET_KEY_HIDDEN"]);
             params = params.concat(["-k", this._nugetKey]);
             yield this.executeAsync("dotnet", params, paramsLogSafe);
+            // We set some output variables that following steps may use
             this.outputVariable("PACKAGE_NAME", packageFilename);
             this.outputVariable("PACKAGE_PATH", path.resolve(packageFilename));
             if (this._includeSymbols) {

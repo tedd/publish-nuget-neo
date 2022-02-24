@@ -119,43 +119,9 @@ class Action {
         options = options || <SpawnOptionsWithStdioTuple<StdioPipe, StdioPipe, StdioPipe>>{};
 
         options.stdio = <any>[process.stdin, process.stdout, process.stderr];
-        //const asyncExe = util.promisify(execFile);
-        /* This exits process
-        const result = await asyncExe(command, args, options, (error: ExecFileException | null, stdout: string | Buffer, stderr: string | Buffer) => {
-            if (error)
-                this.fail(error);
-
-            if (stderr)
-                //process.stderr.write(stderr);
-                console.error(stderr);
-            
-            if (stdout) 
-                //process.stdout.write(stdout);
-                console.log(stdout);
-        });
-        */
-        //var result = spawnSync(command, args, options);
-         
-        // cmd.stdout.on('data', (data: string) => console.log(data));
-        // cmd.stderr.on('data', (data: string) => console.error(data));
-        // cmd.on('close', (code: any) => {
-        //     console.log(`child process close all stdio with code ${code}`);
-        //   });
-          
-        //   cmd.on('exit', (code: any) => {
-        //     console.log(`child process exited with code ${code}`);
-        //   });
+        
         return new Promise<void>((resolve, reject) => {
             var cmd = spawn(command, args, options);
-
-            // cmd.stdout.on('data', (data:Buffer) => {
-            //     console.log(data.toString());
-            //   });
-              
-            //   cmd.stderr.on('data', (data:any) => {
-            //     console.error(`${data.toString()}`);
-            //   });
-              
               cmd.on('close', (code:any) => {
                 if (code !== 0)
                     this.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
@@ -287,7 +253,7 @@ class Action {
     /**
      * Package the project
      */
-    private async packageProjectAsync(): Promise<string> {
+    private async packageProjectAsync(): Promise<void> {
         this.info(`[packageProjectAsync] Packaging project: \"${this._projectFilePath}\" to "${this._nugetSearchPath}"`);
 
         // Remove existing packages
@@ -304,17 +270,15 @@ class Action {
         params.push(this._nugetSearchPath);
 
         await this.executeAsync("dotnet", params);
-
-        const packages = fs.readdirSync(this._nugetSearchPath).filter((fn:string) => fn.endsWith("nupkg"))
-        return packages.join(", ");
     }
 
     private async publishPackageAsync(): Promise<void> {
-        this.info(`[publishPackageAsync] Publishing package "${this._nugetSearchPath}/*.nupkg"`);
-
-        // Set variables
+        // Find files
         const packages = fs.readdirSync(this._nugetSearchPath).filter((fn:string) => fn.endsWith("nupkg"))        
         const packageFilename = packages.filter((fn:string) => fn.endsWith(".nupkg"))[0];
+
+        this.info(`[publishPackageAsync] Publishing package "${this._nugetSearchPath}/${packageFilename}"`);
+
         
         let params=["dotnet", "nuget", "push", `${this._nugetSearchPath}/${packageFilename}`, "-s", `${this._nugetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output" ];
         if (!this._includeSymbols)
@@ -326,6 +290,7 @@ class Action {
     
         await this.executeAsync("dotnet", params, paramsLogSafe);
 
+        // We set some output variables that following steps may use
         this.outputVariable("PACKAGE_NAME", packageFilename);
         this.outputVariable("PACKAGE_PATH", path.resolve(packageFilename));
 
