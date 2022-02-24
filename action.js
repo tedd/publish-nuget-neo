@@ -12,161 +12,185 @@ Object.defineProperty(exports, "__esModule", { value: true });
 /*
  * IMPORTANT: Only modify action.ts. Any modifications to action.js will be lost.
  */
-// NodeJS modules we will need
-const os = require("os"), fs = require("fs"), path = require("path"), util = require('util'), https = require("https"), child_process = require("child_process"), execFile = require("child_process").execFile, spawnSync = require("child_process").spawnSync, spawn = require("child_process").spawn, validUrl = require('valid-url');
-class Action {
-    constructor() {
-        this._projectFilePath = process.env.INPUT_PROJECT_FILE_PATH || process.env.PROJECT_FILE_PATH;
-        this._nugetKey = process.env.INPUT_NUGET_KEY || process.env.NUGET_KEY;
-        this._nugetSource = process.env.INPUT_NUGET_SOURCE || process.env.NUGET_SOURCE;
-        this._tagFormat = process.env.INPUT_TAG_FORMAT || process.env.TAG_FORMAT;
-        this._packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
-        this._packageVersion = process.env.INPUT_VERSION_STATIC || process.env.VERSION_STATIC;
-        this._versionFilePath = process.env.INPUT_VERSION_FILE_PATH || process.env.VERSION_FILE_PATH;
-        this._versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX;
-        let key;
-        let value;
-        try {
-            key = "INCLUDE_SYMBOLS";
-            value = process.env.INPUT_INCLUDE_SYMBOLS || process.env.INCLUDE_SYMBOLS || "false";
-            this._includeSymbols = JSON.parse(value);
-            key = "TAG_COMMIT";
-            value = process.env.INPUT_TAG_COMMIT || process.env.TAG_COMMIT || "false";
-            this._tagCommit = JSON.parse(value);
-            key = "REBUILD_PROJECT";
-            value = process.env.INPUT_REBUILD_PROJECT || process.env.REBUILD_PROJECT || "true";
-            this._rebuildProject = JSON.parse(value);
-            key = "DEBUG";
-            value = process.env.INPUT_DEBUG || process.env.DEBUG || "true";
-            this._debug = JSON.parse(value);
-        }
-        catch (error) {
-            this.fail(`Error parsing variable "${key}" value "${value}": ${error}`);
-        }
+// Import NodeJS modules we will need
+const os = require("os"), fs = require("fs"), path = require("path"), https = require("https"), spawn = require("child_process").spawn, 
+// Import additional modules
+validUrl = require('valid-url');
+var LogLevel;
+(function (LogLevel) {
+    LogLevel[LogLevel["DEBUG"] = 3] = "DEBUG";
+    LogLevel[LogLevel["INFO"] = 2] = "INFO";
+    LogLevel[LogLevel["WARN"] = 1] = "WARN";
+})(LogLevel || (LogLevel = {}));
+class Log {
+    static fail(message, ...optionalParameters) {
+        console.error("FATAL ERROR: " + message, optionalParameters);
+        if (!optionalParameters)
+            message += os.EOL + JSON.stringify(optionalParameters);
+        throw new Error(message);
     }
+    static warning(message, ...optionalParameters) {
+        if (this.LogLevel >= LogLevel.WARN)
+            console.warn(message, optionalParameters);
+    }
+    static info(message, ...optionalParameters) {
+        if (this.LogLevel >= LogLevel.INFO)
+            console.log(message, optionalParameters);
+    }
+    static debug(message, ...optionalParameters) {
+        if (this.LogLevel >= LogLevel.DEBUG)
+            console.debug(message, optionalParameters);
+    }
+}
+Log.LogLevel = LogLevel.DEBUG;
+class Action {
     /* Main entry point */
     run() {
         return __awaiter(this, void 0, void 0, function* () {
+            // Read input variables
+            let config = this.readInputs();
             // Validate input variables and populate variables if necessary
-            this.validateAndPopulateInputs();
+            this.validateAndPopulateInputs(config);
             // Check if package exists on NuGet server.
-            const nugetPackageExists = yield this.checkNugetPackageExistsAsync(this._packageName, this._packageVersion);
-            this.info(`NuGet package "${this._packageName}" version "${this._packageVersion}" does${nugetPackageExists ? "" : " not"} exists on NuGet server "${this._nugetSource}".`);
+            const nugetPackageExists = yield this.checkNuGetPackageExistsAsync(config.nugetSource, config.packageName, config.packageVersion);
+            Log.info(`NuGet package "${config.packageName}" version "${config.packageVersion}" does${nugetPackageExists ? "" : " not"} exists on NuGet server "${config.nugetSource}".`);
             // If package does exist we will stop here.
             if (nugetPackageExists) {
-                this.info("Will not publish NuGet package because this version already exists on NuGet server.");
+                Log.info("Will not publish NuGet package because this version already exists on NuGet server.");
                 return;
             }
             // Rebuild project if specified
-            if (this._rebuildProject)
-                yield this.rebuildProjectAsync();
+            if (config.rebuildProject)
+                yield this.rebuildProjectAsync(config.projectFilePath);
             // Package project
-            yield this.packageProjectAsync();
+            yield this.packageProjectAsync(config.projectFilePath, config.nugetSearchPath, config.includeSymbols);
             // Publish package
-            yield this.publishPackageAsync();
+            yield this.publishPackageAsync(config.nugetSource, config.nugetKey, config.nugetSearchPath, config.includeSymbols);
             // Commit a tag if publish was successful
-            if (this._tagCommit)
-                yield this.gitCommitTagAsync;
+            if (config.tagCommit) {
+                const tag = config.tagFormat.replace("*", config.packageVersion);
+                yield this.gitCommitTagAsync(tag);
+            }
         });
     }
-    fail(message, ...optionalParameters) {
-        console.error("FATAL ERROR: " + message, optionalParameters);
-        throw new Error(message);
-    }
-    info(message, ...optionalParameters) {
-        console.log(message, optionalParameters);
-    }
-    debug(message, ...optionalParameters) {
-        if (this._debug)
-            console.debug(message, optionalParameters);
-    }
+    /** Write OUTPUT variables */
     outputVariable(name, value) {
+        Log.debug(`Setting output \"${name}\" to \"${value}\".`);
         process.stdout.write(`::set-output name=${name}::${value}${os.EOL}`);
     }
+    /** Execute command and route stdout and stderr to apps respective channels */
     executeAsync(command, args = [], logSafeArgs = null, options = null) {
         return __awaiter(this, void 0, void 0, function* () {
             if (logSafeArgs === null)
                 logSafeArgs = args;
-            this.info(`[executeAsync] Executing command: ${command} ${logSafeArgs.join(" ")}`);
+            Log.info(`[executeAsync] Executing command: ${command} ${logSafeArgs.join(" ")}`);
             options = options || {};
             options.stdio = [process.stdin, process.stdout, process.stderr];
             return new Promise((resolve, reject) => {
                 var cmd = spawn(command, args, options);
                 cmd.on('close', (code) => {
                     if (code !== 0)
-                        this.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
+                        Log.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
                     else
-                        this.info(`[executeAsync] Done executing command: ${command} ${logSafeArgs.join(" ")}.`);
+                        Log.info(`[executeAsync] Done executing command: ${command} ${logSafeArgs.join(" ")}.`);
                     resolve(code);
                 });
                 cmd.on('error', (err) => {
-                    this.fail(err);
+                    Log.fail(err);
                     reject(err);
                 });
             });
         });
     }
-    /**
-     * Validates the user inputs from GitHub Actions
-     */
-    validateAndPopulateInputs() {
+    /** Read INPUT environment variables */
+    readInputs() {
+        let config = {};
+        config.projectFilePath = process.env.INPUT_PROJECT_FILE_PATH || process.env.PROJECT_FILE_PATH;
+        config.nugetKey = process.env.INPUT_NUGET_KEY || process.env.NUGET_KEY;
+        config.nugetSource = process.env.INPUT_NUGET_SOURCE || process.env.NUGET_SOURCE;
+        config.tagFormat = process.env.INPUT_TAG_FORMAT || process.env.TAG_FORMAT;
+        config.packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
+        config.packageVersion = process.env.INPUT_VERSION_STATIC || process.env.VERSION_STATIC;
+        config.versionFilePath = process.env.INPUT_VERSION_FILE_PATH || process.env.VERSION_FILE_PATH;
+        config.versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX;
+        let key;
+        let value;
+        try {
+            key = "INCLUDE_SYMBOLS";
+            value = process.env.INPUT_INCLUDE_SYMBOLS || process.env.INCLUDE_SYMBOLS || "false";
+            config.includeSymbols = JSON.parse(value);
+            key = "TAG_COMMIT";
+            value = process.env.INPUT_TAG_COMMIT || process.env.TAG_COMMIT || "false";
+            config.tagCommit = JSON.parse(value);
+            key = "REBUILD_PROJECT";
+            value = process.env.INPUT_REBUILD_PROJECT || process.env.REBUILD_PROJECT || "true";
+            config.rebuildProject = JSON.parse(value);
+            key = "LOG_LEVEL";
+            value = process.env.INPUT_LOG_LEVEL || process.env.LOG_LEVEL || "DEBUG";
+            config.logLevel = LogLevel[value] || LogLevel.DEBUG;
+        }
+        catch (error) {
+            Log.fail(`Error parsing variable "${key}" value "${value}": ${error}`);
+        }
+        return config;
+    }
+    /** Validates the user inputs from GitHub Actions */
+    validateAndPopulateInputs(config) {
         // Check that we have a valid project file path
-        !fs.existsSync(this._projectFilePath) && this.fail(`Project path "${this._projectFilePath}" does not exist.`);
-        !fs.lstatSync(this._projectFilePath).isFile() && this.fail(`Project path "${this._projectFilePath}" must be a directory.`);
-        this.debug(`Project path exists: ${this._projectFilePath}`);
+        !fs.existsSync(config.projectFilePath) && Log.fail(`Project path "${config.projectFilePath}" does not exist.`);
+        !fs.lstatSync(config.projectFilePath).isFile() && Log.fail(`Project path "${config.projectFilePath}" must be a directory.`);
+        Log.debug(`Project path exists: ${config.projectFilePath}`);
         // Check that we have a valid nuget key
-        !this._nugetKey && this.fail(`Nuget key must be specified.`);
+        !config.nugetKey && Log.fail(`NuGet key must be specified.`);
         // Check that we have a valid nuget source
-        !validUrl.isUri(this._nugetSource) && this.fail(`Nuget source "${this._nugetSource}" is not a valid URL.`);
+        !validUrl.isUri(config.nugetSource) && Log.fail(`NuGet source "${config.nugetSource}" is not a valid URL.`);
         // If we don't have a static package version we'll need to look it up
-        if (!this._packageVersion) {
+        if (!config.packageVersion) {
             // Check that we have a valid version file path
-            !fs.existsSync(this._versionFilePath) && this.fail(`Version file path "${this._versionFilePath}" does not exist.`);
-            !fs.lstatSync(this._versionFilePath).isFile() && this.fail(`Version file path "${this._versionFilePath}" must be a directory.`);
-            this.debug(`Version file path exists: ${this._versionFilePath}`);
+            !fs.existsSync(config.versionFilePath) && Log.fail(`Version file path "${config.versionFilePath}" does not exist.`);
+            !fs.lstatSync(config.versionFilePath).isFile() && Log.fail(`Version file path "${config.versionFilePath}" must be a directory.`);
+            Log.debug(`Version file path exists: "${config.versionFilePath}"`);
             // Check that regex is correct
             let versionRegex;
             try {
-                versionRegex = new RegExp(this._versionRegex, "m");
+                versionRegex = new RegExp(config.versionRegex, "m");
             }
             catch (e) {
-                this.fail(`Version regex "${this._versionRegex}" is not a valid regular expression: ${e.message}`);
+                Log.fail(`Version regex "${config.versionRegex}" is not a valid regular expression: ${e.message}`);
             }
             // Read file content
-            const versionFileContent = fs.readFileSync(this._versionFilePath);
+            const versionFileContent = fs.readFileSync(config.versionFilePath);
             const version = versionRegex.exec(versionFileContent);
             if (!version)
-                this.fail(`Unable to find version using regex "${this._versionRegex}" in file "${this._versionFilePath}".`);
+                Log.fail(`Unable to find version using regex "${config.versionRegex}" in file "${config.versionFilePath}".`);
             // Successfully read version
-            this._packageVersion = version[1];
+            config.packageVersion = version[1];
         }
         // Check that we have a valid tag format
-        if (this._tagCommit) {
-            !this._tagFormat && this.fail(`Tag format must be specified.`);
-            !this._tagFormat.includes("*") && this.fail(`Tag format "${this._tagFormat}" does not contain *.`);
-            this.debug("Valid tag format: %s", this._tagFormat);
+        if (config.tagCommit) {
+            !config.tagFormat && Log.fail(`Tag format must be specified.`);
+            !config.tagFormat.includes("*") && Log.fail(`Tag format "${config.tagFormat}" does not contain *.`);
+            Log.debug("Valid tag format: %s", config.tagFormat);
         }
-        if (!this._packageName) {
-            const { groups: { name } } = this._projectFilePath.match(/(?<name>[^\/]+)\.[a-z]+$/i);
-            this._packageName = name;
-            this.debug(`Package name not specified, extracted from PROJECT_FILE_PATH: "${this._packageName}"`);
+        if (!config.packageName) {
+            const { groups: { name } } = config.projectFilePath.match(/(?<name>[^\/]+)\.[a-z]+$/i);
+            config.packageName = name;
+            Log.debug(`Package name not specified, extracted from PROJECT_FILE_PATH: "${config.packageName}"`);
         }
-        !this._packageName && this.fail(`Package name must be specified.`);
+        !config.packageName && Log.fail(`Package name must be specified.`);
         // Where to search for NuGet packages
-        this._nugetSearchPath = path.dirname(this._projectFilePath);
+        config.nugetSearchPath = path.dirname(config.projectFilePath);
     }
-    /*
-     * Check NuGet server if package exists and if specified version of that package exists.
-     */
-    checkNugetPackageExistsAsync(packageName, version) {
+    /** Check NuGet server if package exists and if specified version of that package exists. */
+    checkNuGetPackageExistsAsync(nugetSource, packageName, version) {
         return __awaiter(this, void 0, void 0, function* () {
-            const url = `${this._nugetSource}/v3-flatcontainer/${this._packageName}/index.json`;
-            this.info(`[checkNugetPackageExistsAsync] Checking if NuGet package exists on NuGet server: \"${url}\"`);
+            const url = `${nugetSource}/v3-flatcontainer/${packageName}/index.json`;
+            Log.info(`[checkNugetPackageExistsAsync] Checking if NuGet package exists on NuGet server: \"${url}\"`);
             return new Promise((packageVersionExists) => {
                 https.get(url, (res) => {
                     let data = "";
                     if (res.statusCode == 404) {
-                        this.debug(`NuGet server returned HTTP status code ${res.statusCode}: Package "${packageName}" does not exist.`);
+                        Log.debug(`NuGet server returned HTTP status code ${res.statusCode}: Package "${packageName}" does not exist.`);
                         packageVersionExists(false);
                         return;
                     }
@@ -181,12 +205,12 @@ class Action {
                         // Parse JSON and check if the version exists
                         const packages = JSON.parse(data);
                         const exists = packages.versions.includes(version);
-                        this.debug(`NuGet server returned: ${packages.versions.length} package versions. Package version "${version}" is${exists ? "" : " not"} in list.`);
+                        Log.debug(`NuGet server returned: ${packages.versions.length} package versions. Package version "${version}" is${exists ? "" : " not"} in list.`);
                         packageVersionExists(exists);
                         return;
                     });
                     res.on("error", e => {
-                        this.fail(e);
+                        Log.fail(e);
                         packageVersionExists(false);
                         return;
                     });
@@ -194,62 +218,59 @@ class Action {
             });
         });
     }
-    /**
-     * Rebuild the project
-     */
-    rebuildProjectAsync() {
+    /** Rebuild the project using dotnet build */
+    rebuildProjectAsync(projectFilePath) {
         return __awaiter(this, void 0, void 0, function* () {
-            this.info(`[rebuildProjectAsync] Rebuilding project: \"${this._projectFilePath}\"`);
-            yield this.executeAsync("dotnet", ["build", "-c", "Release", this._projectFilePath]);
+            Log.info(`[rebuildProjectAsync] Rebuilding project: \"${projectFilePath}\"`);
+            yield this.executeAsync("dotnet", ["build", "-c", "Release", projectFilePath]);
         });
     }
-    /**
-     * Package the project
-     */
-    packageProjectAsync() {
+    /** Package the project using dotnet pack */
+    packageProjectAsync(projectFilePath, nugetSearchPath, includeSymbols) {
         return __awaiter(this, void 0, void 0, function* () {
-            this.info(`[packageProjectAsync] Packaging project: \"${this._projectFilePath}\" to "${this._nugetSearchPath}"`);
+            Log.info(`[packageProjectAsync] Packaging project: \"${projectFilePath}\" to "${nugetSearchPath}"`);
             // Remove existing packages
-            fs.readdirSync(this._nugetSearchPath).filter((fn) => /\.s?nupkg$/.test(fn)).forEach((fn) => fs.unlinkSync(`${this._nugetSearchPath}/${fn}`));
+            fs.readdirSync(nugetSearchPath).filter((fn) => /\.s?nupkg$/.test(fn)).forEach((fn) => fs.unlinkSync(`${nugetSearchPath}/${fn}`));
             // Package new
             let params = ["pack", "-c", "Release"];
-            if (this._includeSymbols) {
+            if (includeSymbols) {
                 params.push("--include-symbols");
                 params.push("-p:SymbolPackageFormat=snupkg");
             }
-            params.push(this._projectFilePath);
+            params.push(projectFilePath);
             params.push("-o");
-            params.push(this._nugetSearchPath);
+            params.push(nugetSearchPath);
             yield this.executeAsync("dotnet", params);
         });
     }
-    publishPackageAsync() {
+    /** Publish package to NuGet server using dotnet nuget push */
+    publishPackageAsync(nuGetSource, nugetKey, nugetSearchPath, includeSymbols) {
         return __awaiter(this, void 0, void 0, function* () {
             // Find files
-            const packages = fs.readdirSync(this._nugetSearchPath).filter((fn) => fn.endsWith("nupkg"));
+            const packages = fs.readdirSync(nugetSearchPath).filter((fn) => fn.endsWith("nupkg"));
             const packageFilename = packages.filter((fn) => fn.endsWith(".nupkg"))[0];
-            this.info(`[publishPackageAsync] Publishing package "${this._nugetSearchPath}/${packageFilename}"`);
-            let params = ["dotnet", "nuget", "push", `${this._nugetSearchPath}/${packageFilename}`, "-s", `${this._nugetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output"];
-            if (!this._includeSymbols)
+            Log.info(`[publishPackageAsync] Publishing package "${nugetSearchPath}/${packageFilename}"`);
+            let params = ["dotnet", "nuget", "push", `${nugetSearchPath}/${packageFilename}`, "-s", `${nuGetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output"];
+            if (!includeSymbols)
                 params.push("--no-symbols");
             // Separate param array that is safe to log (no nuget key)
             let paramsLogSafe = params.concat(["-k", "NUGET_KEY_HIDDEN"]);
-            params = params.concat(["-k", this._nugetKey]);
+            params = params.concat(["-k", nugetKey]);
             yield this.executeAsync("dotnet", params, paramsLogSafe);
             // We set some output variables that following steps may use
             this.outputVariable("PACKAGE_NAME", packageFilename);
             this.outputVariable("PACKAGE_PATH", path.resolve(packageFilename));
-            if (this._includeSymbols) {
+            if (includeSymbols) {
                 const symbolsFilename = packages.filter((fn) => fn.endsWith(".snupkg"))[0];
                 this.outputVariable("SYMBOLS_PACKAGE_NAME", symbolsFilename);
                 this.outputVariable("SYMBOLS_PACKAGE_PATH", path.resolve(symbolsFilename));
             }
         });
     }
-    gitCommitTagAsync() {
+    /** Push a tag on current commit using git tag and git push */
+    gitCommitTagAsync(tag) {
         return __awaiter(this, void 0, void 0, function* () {
-            const tag = this._tagFormat.replace("*", this._packageVersion);
-            this.info(`[gitCommitTagAsync] Creating tag: ${tag}`);
+            Log.info(`[gitCommitTagAsync] Creating tag: ${tag}`);
             yield this.executeAsync("git", ["tag", tag]);
             yield this.executeAsync("git", ["push", "origin", tag]);
             this.outputVariable("VERSION", tag);
