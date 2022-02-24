@@ -43,6 +43,51 @@ class Log {
     }
 }
 Log.LogLevel = LogLevel.DEBUG;
+class ProjectLocator {
+    static searchRecursive(rootDir, pattern, callback) {
+        let ret = false;
+        // Read contents of directory
+        fs.readdirSync(rootDir).every((dir) => {
+            // Obtain absolute path
+            dir = path.resolve(rootDir, dir);
+            // Get stats to determine if path is a directory or a file
+            var stat = fs.statSync(dir);
+            // If path is a directory, recurse on it
+            if (stat.isDirectory())
+                // If recursion found a project file
+                if (this.searchRecursive(dir, pattern, callback)) {
+                    // Set return value to true for this level too
+                    ret = true;
+                    // Exit this every-loop
+                    return false;
+                }
+            // If path is a file and ends with pattern then push it onto results
+            if (stat.isFile() && pattern.test(dir)) {
+                if (callback(dir))
+                    ret = true;
+                // Exit this every-loop
+                return false;
+            }
+            // Continue this every-loop
+            return true;
+        });
+        return ret;
+    }
+    static isProjectFileNuGetPackage(file) {
+        var fileContent = fs.readFileSync(file).toString();
+        return (new RegExp("^\s*<GeneratePackageOnBuild>\s*true\s*<\/GeneratePackageOnBuild>\s*$", "im")).test(fileContent);
+    }
+    static GetFirstNuGetProject(rootDir) {
+        let projectPath = null;
+        this.searchRecursive(rootDir, new RegExp("\.(cs|fs|vb)proj$", "i"), (file) => {
+            var isProjectPath = this.isProjectFileNuGetPackage(file);
+            if (isProjectPath)
+                projectPath = file;
+            return isProjectPath;
+        });
+        return projectPath;
+    }
+}
 class Action {
     /* Main entry point */
     run() {
@@ -102,7 +147,7 @@ class Action {
             });
         });
     }
-    /** Read INPUT environment variables */
+    /** Read INPUT environment variables and return an IActionConfig object */
     readInputs() {
         let config = {};
         config.projectFilePath = process.env.INPUT_PROJECT_FILE_PATH || process.env.PROJECT_FILE_PATH;
@@ -134,8 +179,13 @@ class Action {
         }
         return config;
     }
-    /** Validates the user inputs from GitHub Actions */
+    /** Validates the user input variables from GitHub Actions and populates any additional variables */
     validateAndPopulateInputs(config) {
+        if (!config.projectFilePath) {
+            config.projectFilePath = ProjectLocator.GetFirstNuGetProject("./");
+            !config.projectFilePath && Log.fail(`No project file specified. Attempted to resolve project file by recursive search, but could not find any .csproj/.fsproj/.vbproj files with "<GeneratePackageOnBuild>true</GeneratePackageOnBuild>".`);
+            Log.info(`No project file path specified. Did a recursive search and found: ${config.projectFilePath}`);
+        }
         // Check that we have a valid project file path
         !fs.existsSync(config.projectFilePath) && Log.fail(`Project path "${config.projectFilePath}" does not exist.`);
         !fs.lstatSync(config.projectFilePath).isFile() && Log.fail(`Project path "${config.projectFilePath}" must be a directory.`);
@@ -181,7 +231,7 @@ class Action {
         // Where to search for NuGet packages
         config.nugetSearchPath = path.dirname(config.projectFilePath);
     }
-    /** Check NuGet server if package exists and if specified version of that package exists. */
+    /** Check NuGet server if package exists + if specified version of that package exists. */
     checkNuGetPackageExistsAsync(nugetSource, packageName, version) {
         return __awaiter(this, void 0, void 0, function* () {
             const url = `${nugetSource}/v3-flatcontainer/${packageName}/index.json`;
