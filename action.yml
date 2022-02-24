@@ -1,5 +1,5 @@
 name: "Publish to NuGet"
-description: "New implementation of Publish to NuGet. Drop-in compatible."
+description: "New implementation of Publish to NuGet. Drop-in replacement for rohith/publish-nuget and brandedoutcast/publish-nuget."
 
 inputs:
   PROJECT_FILE_PATH:
@@ -28,14 +28,14 @@ inputs:
     description: "NuGet package name. This is used for checking NuGet server if package version already exists. (Default: name extracted from PROJECT_FILE_PATH)"
     required: false
   VERSION_FILE_PATH:
-    description: "Path file containing version number. (Default: $PROJECT_FILE_PATH)"
+    description: "Path to file containing version number to extract using regex. (Default: $PROJECT_FILE_PATH)"
     required: false
   VERSION_REGEX:
     description: "Regex pattern to extract version info in a capturing group. (Default: ^\\s*<Version>(.*)<\\/Version>\\s*$)"
     required: false
     default: "^\\s*<Version>(.*)<\\/Version>\\s*$"
   VERSION_STATIC:
-      description: "Useful with external providers like Nerdbank.GitVersioning where you could for example set it to variable (dollar){{steps.nbgv.outputs.SemVer2}}. Ignores VERSION_FILE_PATH & VERSION_REGEX."
+      description: "Useful with external providers like Nerdbank.GitVersioning where you could for example set it to variable (dollar){{env.GitBuildVersionSimple}}. Ignores VERSION_FILE_PATH & VERSION_REGEX."
       required: false
   REBUILD_PROJECT:
     description: "Rebuild project in release mode? You may turn this off if you have built project in previous step. (default: true)"
@@ -49,15 +49,15 @@ inputs:
 
 outputs:
     VERSION:
-        description: "Version of the associated git tag"
+        description: "Version of the associated git tag."
     PACKAGE_NAME:
-        description: "Name of the NuGet package generated"
+        description: "Name of the NuGet package generated."
     PACKAGE_PATH:
-        description: "Path to the generated NuGet package"
+        description: "Path to the generated NuGet package."
     SYMBOLS_PACKAGE_NAME:
-        description: "Name of the symbols package generated"
+        description: "Name of the symbols package generated."
     SYMBOLS_PACKAGE_PATH:
-        description: "Path to the generated symbols package"
+        description: "Path to the generated symbols package."
 
 runs:
     using: "node16"
