@@ -104,7 +104,7 @@ I will not do this, if course. But you need to realize what risks you are expose
 If you do not trust me, follow these steps:
 
 * Fork repo so only you can modify it.
-* Verify that [actions.ts](blob/main/action.ts) looks safe, no scary stuff. Check that [validate-url](blob/main/node_modules/valid-url/index.js) ([NPM](https://www.npmjs.com/package/valid-url), not my code) looks safe.
+* Verify that [actions.ts](https://github.com/tedd/publish-nuget-neo/blob/main/action.ts) looks safe, no scary stuff. Check that [validate-url](https://github.com/tedd/publish-nuget-neo/blob/main/node_modules/valid-url/index.js) ([NPM](https://www.npmjs.com/package/valid-url), not my code) looks safe.
 * Once happy with code review, run compile.bat or compile.sh to recreate actions.js.
 * Create a release named for example "v1.0.0-safe".
   * You do not need to publish the release to marketplace for you to use it.
