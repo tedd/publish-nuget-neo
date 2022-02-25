@@ -23,83 +23,6 @@ var LogLevel;
     LogLevel[LogLevel["INFO"] = 2] = "INFO";
     LogLevel[LogLevel["WARN"] = 1] = "WARN";
 })(LogLevel || (LogLevel = {}));
-class Log {
-    static fail(message, ...optionalParameters) {
-        console.error("FATAL ERROR: " + message, optionalParameters);
-        if (!optionalParameters)
-            message += os.EOL + JSON.stringify(optionalParameters);
-        throw new Error(message);
-    }
-    static warning(message, ...optionalParameters) {
-        if (this.LogLevel >= LogLevel.WARN)
-            console.warn(message, optionalParameters);
-    }
-    static info(message, ...optionalParameters) {
-        if (this.LogLevel >= LogLevel.INFO)
-            console.log(message, optionalParameters);
-    }
-    static debug(message, ...optionalParameters) {
-        if (this.LogLevel >= LogLevel.DEBUG)
-            console.debug(message, optionalParameters);
-    }
-}
-Log.LogLevel = LogLevel.DEBUG;
-class ProjectLocator {
-    static searchRecursive(rootDir, pattern, callback) {
-        let ret = false;
-        Log.debug(`[searchRecursive] DIR: "${rootDir}"`);
-        // Read contents of directory
-        fs.readdirSync(rootDir).every((dir) => {
-            // Obtain absolute path
-            dir = path.resolve(rootDir, dir);
-            // Get stats to determine if path is a directory or a file
-            var stat = fs.statSync(dir);
-            // If path is a directory, recurse on it
-            if (stat.isDirectory())
-                // If recursion found a project file
-                if (this.searchRecursive(dir, pattern, callback)) {
-                    // Set return value to true for this level too
-                    ret = true;
-                    // Exit this every-loop
-                    return false;
-                }
-            // If path is a file and ends with pattern then push it onto results
-            if (stat.isFile()) {
-                //Log.debug(`[searchRecursive] Is file: "${dir}"`);
-                if (pattern.test(dir)) {
-                    var done = callback(dir);
-                    Log.debug(`[searchRecursive] Callback on file "${dir}" returns halt search: ${done}`);
-                    if (done) {
-                        ret = true;
-                        // Exit this every-loop
-                        return false;
-                    }
-                }
-            }
-            // Continue this every-loop
-            return true;
-        });
-        return ret;
-    }
-    static isProjectFileNuGetPackage(file) {
-        var fileContent = fs.readFileSync(file).toString();
-        Log.debug(`[isProjectFileNuGetPackage] File content: ${fileContent}`);
-        var match = this.isProjectFileNuGetPackageRegex.test(fileContent);
-        Log.debug(`[isProjectFileNuGetPackage] Matched "${this.isProjectFileNuGetPackageRegex}": ${match}`);
-        return match;
-    }
-    static GetFirstNuGetProject(rootDir) {
-        let projectPath = null;
-        this.searchRecursive(rootDir, new RegExp(`\.(cs|fs|vb)proj$`, "i"), (file) => {
-            var isProjectPath = this.isProjectFileNuGetPackage(file);
-            if (isProjectPath)
-                projectPath = file;
-            return isProjectPath;
-        });
-        return projectPath;
-    }
-}
-ProjectLocator.isProjectFileNuGetPackageRegex = new RegExp(`^\\s*<GeneratePackageOnBuild>\\s*true\\s*</GeneratePackageOnBuild>\\s*$`, "im");
 class Action {
     /* Main entry point */
     run() {
@@ -224,8 +147,7 @@ class Action {
                 Log.fail(`Version regex "${config.versionRegex}" is not a valid regular expression: ${e.message}`);
             }
             // Read file content
-            const versionFileContent = fs.readFileSync(config.versionFilePath);
-            const version = versionRegex.exec(versionFileContent);
+            const version = this.extractRegexFromFile(config.versionFilePath, versionRegex);
             if (!version)
                 Log.fail(`Unable to find version using regex "${config.versionRegex}" in file "${config.versionFilePath}".`);
             // Successfully read version
@@ -245,6 +167,14 @@ class Action {
         !config.packageName && Log.fail(`Package name must be specified.`);
         // Where to search for NuGet packages
         config.nugetSearchPath = path.dirname(config.projectFilePath);
+    }
+    /** Extracts data from file using regex */
+    extractRegexFromFile(filePath, regex) {
+        const fileContent = fs.readFileSync(filePath);
+        var data = regex.exec(fileContent);
+        if (!data)
+            return null;
+        return data[1];
     }
     /** Check NuGet server if package exists + if specified version of that package exists. */
     checkNuGetPackageExistsAsync(nugetSource, packageName, version) {
@@ -342,6 +272,83 @@ class Action {
         });
     }
 }
+class ProjectLocator {
+    static searchRecursive(rootDir, pattern, callback) {
+        let ret = false;
+        Log.debug(`[searchRecursive] DIR: "${rootDir}"`);
+        // Read contents of directory
+        fs.readdirSync(rootDir).every((dir) => {
+            // Obtain absolute path
+            dir = path.resolve(rootDir, dir);
+            // Get stats to determine if path is a directory or a file
+            var stat = fs.statSync(dir);
+            // If path is a directory, recurse on it
+            if (stat.isDirectory())
+                // If recursion found a project file
+                if (this.searchRecursive(dir, pattern, callback)) {
+                    // Set return value to true for this level too
+                    ret = true;
+                    // Exit this every-loop
+                    return false;
+                }
+            // If path is a file and ends with pattern then push it onto results
+            if (stat.isFile()) {
+                //Log.debug(`[searchRecursive] Is file: "${dir}"`);
+                if (pattern.test(dir)) {
+                    var done = callback(dir);
+                    Log.debug(`[searchRecursive] Callback on file "${dir}" returns halt search: ${done}`);
+                    if (done) {
+                        ret = true;
+                        // Exit this every-loop
+                        return false;
+                    }
+                }
+            }
+            // Continue this every-loop
+            return true;
+        });
+        return ret;
+    }
+    static isProjectFileNuGetPackage(file) {
+        var fileContent = fs.readFileSync(file).toString();
+        Log.debug(`[isProjectFileNuGetPackage] File content: ${fileContent}`);
+        var match = this.isProjectFileNuGetPackageRegex.test(fileContent);
+        Log.debug(`[isProjectFileNuGetPackage] Matched "${this.isProjectFileNuGetPackageRegex}": ${match}`);
+        return match;
+    }
+    static GetFirstNuGetProject(rootDir) {
+        let projectPath = null;
+        this.searchRecursive(rootDir, new RegExp(`\.(cs|fs|vb)proj$`, "i"), (file) => {
+            var isProjectPath = this.isProjectFileNuGetPackage(file);
+            if (isProjectPath)
+                projectPath = file;
+            return isProjectPath;
+        });
+        return projectPath;
+    }
+}
+ProjectLocator.isProjectFileNuGetPackageRegex = new RegExp(`^\\s*<GeneratePackageOnBuild>\\s*true\\s*</GeneratePackageOnBuild>\\s*$`, "im");
+class Log {
+    static fail(message, ...optionalParameters) {
+        console.error("FATAL ERROR: " + message, optionalParameters);
+        if (!optionalParameters)
+            message += os.EOL + JSON.stringify(optionalParameters);
+        throw new Error(message);
+    }
+    static warn(message, ...optionalParameters) {
+        if (this.LogLevel >= LogLevel.WARN)
+            console.warn("[WARN] " + message, optionalParameters);
+    }
+    static info(message, ...optionalParameters) {
+        if (this.LogLevel >= LogLevel.INFO)
+            console.log("[INFO] " + message, optionalParameters);
+    }
+    static debug(message, ...optionalParameters) {
+        if (this.LogLevel >= LogLevel.DEBUG)
+            console.debug("[DEBUG] " + message, optionalParameters);
+    }
+}
+Log.LogLevel = LogLevel.DEBUG;
 // Run the action
 (new Action()).run();
 //# sourceMappingURL=action.js.map
