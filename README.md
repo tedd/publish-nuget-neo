@@ -76,9 +76,6 @@ So I rewrote the whole thing.
   * Default value of `VERSION_REGEX` does a "dumb regex" version extract from `VERSION_FILE_PATH`.
   * If `VERSION_STATIC`is set `VERSION_FILE_PATH`and `VERSION_REGEX` will not be used.
 
-# Note
-The NuGet server must support 
-
 # OUTPUTS
 
 | Output          | Description                         |
