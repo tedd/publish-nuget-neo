@@ -9,11 +9,12 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-/*
- * IMPORTANT: Only modify action.ts. Any modifications to action.js will be lost.
- */
+/**********************************************************************************
+ * IMPORTANT: Only modify action.ts. Any modifications to action.js will be lost. *
+ **********************************************************************************/
+const 
 // Import NodeJS modules we will need
-const os = require("os"), fs = require("fs"), path = require("path"), https = require("https"), spawn = require("child_process").spawn, 
+os = require("os"), fs = require("fs"), path = require("path"), https = require("https"), spawn = require("child_process").spawn, 
 // Import additional modules
 validUrl = require('valid-url');
 var LogLevel;
@@ -46,6 +47,7 @@ Log.LogLevel = LogLevel.DEBUG;
 class ProjectLocator {
     static searchRecursive(rootDir, pattern, callback) {
         let ret = false;
+        Log.debug(`[searchRecursive] DIR: "${rootDir}"`);
         // Read contents of directory
         fs.readdirSync(rootDir).every((dir) => {
             // Obtain absolute path
@@ -62,11 +64,17 @@ class ProjectLocator {
                     return false;
                 }
             // If path is a file and ends with pattern then push it onto results
-            if (stat.isFile() && pattern.test(dir)) {
-                if (callback(dir))
-                    ret = true;
-                // Exit this every-loop
-                return false;
+            if (stat.isFile()) {
+                //Log.debug(`[searchRecursive] Is file: "${dir}"`);
+                if (pattern.test(dir)) {
+                    var done = callback(dir);
+                    Log.debug(`[searchRecursive] Callback on file "${dir}" returns halt search: ${done}`);
+                    if (done) {
+                        ret = true;
+                        // Exit this every-loop
+                        return false;
+                    }
+                }
             }
             // Continue this every-loop
             return true;
@@ -75,11 +83,14 @@ class ProjectLocator {
     }
     static isProjectFileNuGetPackage(file) {
         var fileContent = fs.readFileSync(file).toString();
-        return (new RegExp("^\s*<GeneratePackageOnBuild>\s*true\s*<\/GeneratePackageOnBuild>\s*$", "im")).test(fileContent);
+        Log.debug(`[isProjectFileNuGetPackage] File content: ${fileContent}`);
+        var match = this.isProjectFileNuGetPackageRegex.test(fileContent);
+        Log.debug(`[isProjectFileNuGetPackage] Matched "${this.isProjectFileNuGetPackageRegex}": ${match}`);
+        return match;
     }
     static GetFirstNuGetProject(rootDir) {
         let projectPath = null;
-        this.searchRecursive(rootDir, new RegExp("\.(cs|fs|vb)proj$", "i"), (file) => {
+        this.searchRecursive(rootDir, new RegExp(`\.(cs|fs|vb)proj$`, "i"), (file) => {
             var isProjectPath = this.isProjectFileNuGetPackage(file);
             if (isProjectPath)
                 projectPath = file;
@@ -88,6 +99,7 @@ class ProjectLocator {
         return projectPath;
     }
 }
+ProjectLocator.isProjectFileNuGetPackageRegex = new RegExp(`^\\s*<GeneratePackageOnBuild>\\s*true\\s*</GeneratePackageOnBuild>\\s*$`, "im");
 class Action {
     /* Main entry point */
     run() {
@@ -96,6 +108,9 @@ class Action {
             let config = this.readInputs();
             // Validate input variables and populate variables if necessary
             this.validateAndPopulateInputs(config);
+            const configLogSafe = Object.assign({}, config);
+            configLogSafe.nugetKey = "***";
+            Log.info(`[run] Configuration: ${JSON.stringify(configLogSafe)}`);
             // Check if package exists on NuGet server.
             const nugetPackageExists = yield this.checkNuGetPackageExistsAsync(config.nugetSource, config.packageName, config.packageVersion);
             Log.info(`NuGet package "${config.packageName}" version "${config.packageVersion}" does${nugetPackageExists ? "" : " not"} exists on NuGet server "${config.nugetSource}".`);
