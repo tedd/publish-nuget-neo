@@ -1,5 +1,5 @@
 name: "Publish to NuGet"
-description: "New implementation of \"Publish NuGet\", with more auto config and more logging. Drop-in replacement for all the rohith/publish-nuget and brandedoutcast/publish-nuget."
+description: "New implementation of \"Publish NuGet\". Automatic project detection, better error detection and better logging. Drop-in replacement for all the rohith/publish-nuget and brandedoutcast/publish-nuget."
 
 inputs:
   NUGET_KEY:
@@ -33,7 +33,7 @@ inputs:
   VERSION_REGEX:
     description: "Regex pattern to extract version info in a capturing group. (Default: ^\\s*<Version>(.*)<\\/Version>\\s*$)"
     required: false
-    default: "^\\s*<Version>(.*)<\\/Version>\\s*$"
+    default: "^\\s*<Version>\\s*(.*?)\\s*<\\/Version>\\s*$"
   VERSION_STATIC:
       description: "Useful with external providers like Nerdbank.GitVersioning where you could for example set it to variable (dollar){{env.GitBuildVersionSimple}}. Ignores VERSION_FILE_PATH & VERSION_REGEX."
       required: false

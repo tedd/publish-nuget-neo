@@ -1,3 +1,4 @@
+import { kStringMaxLength } from "buffer";
 import { SpawnOptionsWithStdioTuple, StdioPipe } from "child_process";
 import { IncomingMessage } from "http";
 
@@ -54,7 +55,7 @@ class Action {
 
         const configLogSafe = { ...config };
         configLogSafe.nugetKey = "***";
-        Log.info(`[run] Configuration: ${JSON.stringify(configLogSafe)}`);
+        Log.debug(`[run] Configuration: ${JSON.stringify(configLogSafe, null, 2)}`);
 
         // Check if package exists on NuGet server.
         const nugetPackageExists = await this.checkNuGetPackageExistsAsync(config.nugetSource, config.packageName, config.packageVersion);
@@ -127,7 +128,7 @@ class Action {
         config.packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
         config.packageVersion = process.env.INPUT_VERSION_STATIC || process.env.VERSION_STATIC;
         config.versionFilePath = process.env.INPUT_VERSION_FILE_PATH || process.env.VERSION_FILE_PATH;
-        config.versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX;
+        config.versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX || `^\\s*<Version>\\s*(.+?)\\s*</Version>\\s*$`;
 
         let key: string;
         let value: string;
@@ -167,29 +168,32 @@ class Action {
         // Check that we have a valid nuget source
         !validUrl.isUri(config.nugetSource) && Log.fail(`NuGet source "${config.nugetSource}" is not a valid URL.`);
 
-        // If we have no version file we set it to the project file path
-        config.versionFilePath ||= config.projectFilePath;
-
         // If we don't have a static package version we'll need to look it up
         if (!config.packageVersion) {
+            // If we have no version file we set it to the project file path
+            config.versionFilePath ||= config.projectFilePath;
+
             // Check that we have a valid version file path
             !fs.existsSync(config.versionFilePath) && Log.fail(`Version file path "${config.versionFilePath}" does not exist.`);
             !fs.lstatSync(config.versionFilePath).isFile() && Log.fail(`Version file path "${config.versionFilePath}" must be a directory.`);
             Log.debug(`[validateAndPopulateInputs] Version file path exists: "${config.versionFilePath}"`);
 
             // Check that regex is correct
+            !config.versionRegex && Log.fail(`VERSION_REGEX must be specified.`);
             let versionRegex: RegExp;
             try {
-                versionRegex = new RegExp(config.versionRegex, "m");
+                versionRegex = new RegExp(config.versionRegex, "im");
             } catch (e) {
                 Log.fail(`Version regex "${config.versionRegex}" is not a valid regular expression: ${e.message}`);
             }
+            Log.debug(`[validateAndPopulateInputs] Version regex is valid: "${config.versionRegex}"`);
 
             // Read file content
             const version = this.extractRegexFromFile(config.versionFilePath, versionRegex);
 
             if (!version)
                 Log.fail(`Unable to find version using regex "${config.versionRegex}" in file "${config.versionFilePath}".`);
+            Log.debug(`[validateAndPopulateInputs] Version extracted from "${config.versionFilePath}": "${version}"`);
 
             // Successfully read version
             config.packageVersion = version[1];
@@ -404,7 +408,7 @@ class Log {
     public static fail(message: string | any, ...optionalParameters: any[]): void {
         console.error("FATAL ERROR: " + message, optionalParameters);
         if (!optionalParameters)
-            message += os.EOL + JSON.stringify(optionalParameters);
+            message += os.EOL + JSON.stringify(optionalParameters, null, 2);
         throw new Error(message);
     }
     public static warn(message: string | any, ...optionalParameters: any[]) {
