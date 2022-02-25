@@ -3,10 +3,10 @@ description: "New implementation of \"Publish NuGet\", with more auto config and
 
 inputs:
   NUGET_KEY:
-    description: "NuGet API key to authenticate on NuGet server."
+    description: "NuGet API key to authenticate on NuGet server. DO NOT PUT KEY DIRECTLY IN HERE. Use Secrets function in GitHub for example, i.e. dollarsign{{secrets.YOUR_NUGET_API_KEY}}."
     required: true
   PROJECT_FILE_PATH:
-    description: "Full path to project file. (Example: src/MyNuGetProject/MyNuGetProject.csproj) (Default: Will scan all .csproj files and use first it finds that has GeneratePackageOnBuild set to true.)"
+    description: "Full path to project file. (Example: src/MyNuGetProject/MyNuGetProject.csproj) (Default: Will scan all .csproj/.fsproj/.vbproj files and use first it finds that has GeneratePackageOnBuild set to true.)"
     required: false
   NUGET_SOURCE:
     description: "URL to NuGet server. (Default: https://api.nuget.org)"

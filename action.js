@@ -45,6 +45,7 @@ class Action {
             // Rebuild project if specified
             if (config.rebuildProject)
                 yield this.rebuildProjectAsync(config.projectFilePath);
+            this.outputVariable("PACKAGE_VERSION", config.packageVersion);
             // Package project
             yield this.packageProjectAsync(config.projectFilePath, config.nugetSearchPath, config.includeSymbols);
             // Publish package
@@ -229,7 +230,7 @@ class Action {
             // Package new
             let params = ["pack", "-c", "Release"];
             if (includeSymbols) {
-                params.push("--include-symbols");
+                params.push("-p:IncludeSymbols=true");
                 params.push("-p:SymbolPackageFormat=snupkg");
             }
             params.push(projectFilePath);
@@ -243,23 +244,29 @@ class Action {
         return __awaiter(this, void 0, void 0, function* () {
             // Find files
             const packages = fs.readdirSync(nugetSearchPath).filter((fn) => fn.endsWith("nupkg"));
-            const packageFilename = packages.filter((fn) => fn.endsWith(".nupkg"))[0];
-            Log.info(`[publishPackageAsync] Publishing package "${nugetSearchPath}/${packageFilename}"`);
-            let params = ["dotnet", "nuget", "push", `${nugetSearchPath}/${packageFilename}`, "-s", `${nuGetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output"];
+            const packagePath = nugetSearchPath + "/" + packages.filter((fn) => fn.endsWith(".nupkg"))[0];
+            yield this.publishPackageSpecificAsync(nuGetSource, nugetKey, packagePath, includeSymbols);
+            // We set some output variables that following steps may use
+            this.outputVariable("PACKAGE_NAME", packagePath);
+            this.outputVariable("PACKAGE_PATH", path.resolve(packagePath));
+            if (includeSymbols) {
+                const symbolsPath = nugetSearchPath + "/" + packages.filter((fn) => fn.endsWith(".snupkg"))[0];
+                yield this.publishPackageSpecificAsync(nuGetSource, nugetKey, symbolsPath, false);
+                this.outputVariable("SYMBOLS_PACKAGE_NAME", symbolsPath);
+                this.outputVariable("SYMBOLS_PACKAGE_PATH", path.resolve(symbolsPath));
+            }
+        });
+    }
+    publishPackageSpecificAsync(nuGetSource, nugetKey, packagePath, includeSymbols) {
+        return __awaiter(this, void 0, void 0, function* () {
+            Log.info(`[publishPackageAsync] Publishing package "${packagePath}"`);
+            let params = ["dotnet", "nuget", "push", packagePath, "-s", `${nuGetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output"];
             if (!includeSymbols)
                 params.push("--no-symbols");
             // Separate param array that is safe to log (no nuget key)
             let paramsLogSafe = params.concat(["-k", "NUGET_KEY_HIDDEN"]);
             params = params.concat(["-k", nugetKey]);
             yield this.executeAsync("dotnet", params, paramsLogSafe);
-            // We set some output variables that following steps may use
-            this.outputVariable("PACKAGE_NAME", packageFilename);
-            this.outputVariable("PACKAGE_PATH", path.resolve(packageFilename));
-            if (includeSymbols) {
-                const symbolsFilename = packages.filter((fn) => fn.endsWith(".snupkg"))[0];
-                this.outputVariable("SYMBOLS_PACKAGE_NAME", symbolsFilename);
-                this.outputVariable("SYMBOLS_PACKAGE_PATH", path.resolve(symbolsFilename));
-            }
         });
     }
     /** Push a tag on current commit using git tag and git push */
@@ -275,7 +282,7 @@ class Action {
 class ProjectLocator {
     static searchRecursive(rootDir, pattern, callback) {
         let ret = false;
-        Log.debug(`[searchRecursive] DIR: "${rootDir}"`);
+        //Log.debug(`[searchRecursive] DIR: "${rootDir}"`);
         // Read contents of directory
         fs.readdirSync(rootDir).every((dir) => {
             // Obtain absolute path
@@ -296,7 +303,7 @@ class ProjectLocator {
                 //Log.debug(`[searchRecursive] Is file: "${dir}"`);
                 if (pattern.test(dir)) {
                     var done = callback(dir);
-                    Log.debug(`[searchRecursive] Callback on file "${dir}" returns halt search: ${done}`);
+                    //Log.debug(`[searchRecursive] Callback on file "${dir}" returns halt search: ${done}`);
                     if (done) {
                         ret = true;
                         // Exit this every-loop
@@ -311,9 +318,9 @@ class ProjectLocator {
     }
     static isProjectFileNuGetPackage(file) {
         var fileContent = fs.readFileSync(file).toString();
-        Log.debug(`[isProjectFileNuGetPackage] File content: ${fileContent}`);
+        //Log.debug(`[isProjectFileNuGetPackage] File content: ${fileContent}`);
         var match = this.isProjectFileNuGetPackageRegex.test(fileContent);
-        Log.debug(`[isProjectFileNuGetPackage] Matched "${this.isProjectFileNuGetPackageRegex}": ${match}`);
+        Log.debug(`[isProjectFileNuGetPackage] Matched "${this.isProjectFileNuGetPackageRegex}" on file "${file}": ${match}`);
         return match;
     }
     static GetFirstNuGetProject(rootDir) {
