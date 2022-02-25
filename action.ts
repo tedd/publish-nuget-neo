@@ -196,7 +196,7 @@ class Action {
             Log.debug(`[validateAndPopulateInputs] Version extracted from "${config.versionFilePath}": "${version}"`);
 
             // Successfully read version
-            config.packageVersion = version[1];
+            config.packageVersion = version;
         }
 
         // Check that we have a valid tag format
