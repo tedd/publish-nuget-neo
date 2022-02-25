@@ -159,7 +159,7 @@ class Action {
         // Check that we have a valid project file path
         !fs.existsSync(config.projectFilePath) && Log.fail(`Project path "${config.projectFilePath}" does not exist.`);
         !fs.lstatSync(config.projectFilePath).isFile() && Log.fail(`Project path "${config.projectFilePath}" must be a directory.`);
-        Log.debug(`Project path exists: ${config.projectFilePath}`);
+        Log.debug(`[validateAndPopulateInputs] Project path exists: ${config.projectFilePath}`);
 
         // Check that we have a valid nuget key
         !config.nugetKey && Log.fail(`NuGet key must be specified.`);
@@ -167,12 +167,15 @@ class Action {
         // Check that we have a valid nuget source
         !validUrl.isUri(config.nugetSource) && Log.fail(`NuGet source "${config.nugetSource}" is not a valid URL.`);
 
+        // If we have no version file we set it to the project file path
+        config.versionFilePath ||= config.projectFilePath;
+
         // If we don't have a static package version we'll need to look it up
         if (!config.packageVersion) {
             // Check that we have a valid version file path
             !fs.existsSync(config.versionFilePath) && Log.fail(`Version file path "${config.versionFilePath}" does not exist.`);
             !fs.lstatSync(config.versionFilePath).isFile() && Log.fail(`Version file path "${config.versionFilePath}" must be a directory.`);
-            Log.debug(`Version file path exists: "${config.versionFilePath}"`);
+            Log.debug(`[validateAndPopulateInputs] Version file path exists: "${config.versionFilePath}"`);
 
             // Check that regex is correct
             let versionRegex: RegExp;
@@ -196,13 +199,13 @@ class Action {
         if (config.tagCommit) {
             !config.tagFormat && Log.fail(`Tag format must be specified.`);
             !config.tagFormat.includes("*") && Log.fail(`Tag format "${config.tagFormat}" does not contain *.`);
-            Log.debug("Valid tag format: %s", config.tagFormat);
+            Log.debug("[validateAndPopulateInputs] Valid tag format: %s", config.tagFormat);
         }
 
         if (!config.packageName) {
             const { groups: { name } } = config.projectFilePath.match(/(?<name>[^\/]+)\.[a-z]+$/i);
             config.packageName = name;
-            Log.debug(`Package name not specified, extracted from PROJECT_FILE_PATH: "${config.packageName}"`);
+            Log.debug(`[validateAndPopulateInputs] Package name not specified, extracted from PROJECT_FILE_PATH: "${config.packageName}"`);
         }
         !config.packageName && Log.fail(`Package name must be specified.`);
         // Where to search for NuGet packages
@@ -247,7 +250,7 @@ class Action {
                     // Parse JSON and check if the version exists
                     const packages: IPackageVersions = JSON.parse(data);
                     const exists = packages.versions.includes(version);
-                    Log.debug(`NuGet server returned: ${packages.versions.length} package versions. Package version "${version}" is${exists ? "" : " not"} in list.`);
+                    Log.debug(`[checkNuGetPackageExistsAsync] NuGet server returned: ${packages.versions.length} package versions. Package version "${version}" is${exists ? "" : " not"} in list.`);
                     packageVersionExists(exists);
                     return;
                 });
