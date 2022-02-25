@@ -53,9 +53,24 @@ class Action {
         // Validate input variables and populate variables if necessary
         this.validateAndPopulateInputs(config);
 
+        // Dump config to debug log
         const configLogSafe = { ...config };
         configLogSafe.nugetKey = "***";
         Log.debug(`[run] Configuration: ${JSON.stringify(configLogSafe, null, 2)}`);
+
+        const tag = config.tagFormat.replace("*", config.packageVersion);
+
+        // Check if tag already exists
+        if (config.tagCommit) {
+            const tagExists = await this.gitCheckTagExistsAsync(tag);
+            Log.debug(`[run] Tag "${tag}" exists: ${tagExists}`);
+
+            if (tagExists) {
+                Log.info(`[run] Tag "${tag}" already exists. Will not proceed to publish NuGet package.`);
+                return;
+            } else
+                Log.info(`[run] Tag "${tag}" does not exist. Will proceed to publish NuGet package.`);
+        }
 
         // Check if package exists on NuGet server.
         const nugetPackageExists = await this.checkNuGetPackageExistsAsync(config.nugetSource, config.packageName, config.packageVersion);
@@ -81,7 +96,6 @@ class Action {
 
         // Commit a tag if publish was successful
         if (config.tagCommit) {
-            const tag = config.tagFormat.replace("*", config.packageVersion);
             await this.gitCommitTagAsync(tag);
         }
     }
@@ -93,28 +107,58 @@ class Action {
     }
 
     /** Execute command and route stdout and stderr to apps respective channels */
-    private async executeAsync(command: string, args: string[] = [], logSafeArgs: string[] = null, options: SpawnOptionsWithStdioTuple<StdioPipe, StdioPipe, StdioPipe> = null): Promise<void> {
+    private async executeAsync(command: string, args: string[] = [], logSafeArgs: string[] = null, options: SpawnOptionsWithStdioTuple<StdioPipe, StdioPipe, StdioPipe> = null): Promise<string> {
         if (logSafeArgs === null)
             logSafeArgs = args;
         Log.info(`[executeAsync] Executing command: ${command} ${logSafeArgs.join(" ")}`);
 
         options = options || <SpawnOptionsWithStdioTuple<StdioPipe, StdioPipe, StdioPipe>>{};
 
-        options.stdio = <any>[process.stdin, process.stdout, process.stderr];
+        //options.stdio = <any>[process.stdin, process.stdout, process.stderr];
 
-        return new Promise<void>((resolve, reject) => {
-            var cmd = spawn(command, args, options);
+        return new Promise<string>((resolve, reject) => {
+            // var cmd = spawn(command, args, options);
+            // cmd.on('close', (code: any) => {
+            //     if (code !== 0)
+            //         Log.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
+            //     else
+            //         Log.info(`[executeAsync] Done executing command: ${command} ${logSafeArgs.join(" ")}.`);
+            //     resolve(cmd.stdout.read().toString());
+            // });
+            // cmd.on('error', (err: any) => {
+            //     Log.fail(err);
+            //     reject(err);
+            // });
+
+            var outBuffer = "";
+            var cmd = require('child_process').execFile(command, args, (err: any, stdout: any, stderr: any) => {
+                // Node.js will invoke this callback when process terminates.
+                if (err) {
+                    Log.fail(err);
+                    reject(err);
+                }
+                if (stdout) {
+                    outBuffer += stdout;
+                    Log.info(stdout);
+                }
+                if (stderr) {
+                    outBuffer += stderr;
+                    Log.warn(stderr);
+                }
+            });
+
             cmd.on('close', (code: any) => {
                 if (code !== 0)
                     Log.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
                 else
                     Log.info(`[executeAsync] Done executing command: ${command} ${logSafeArgs.join(" ")}.`);
-                resolve(code);
+                resolve(outBuffer);
             });
             cmd.on('error', (err: any) => {
                 Log.fail(err);
                 reject(err);
             });
+
         });
     }
 
@@ -128,7 +172,7 @@ class Action {
         config.packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
         config.packageVersion = process.env.INPUT_VERSION_STATIC || process.env.VERSION_STATIC;
         config.versionFilePath = process.env.INPUT_VERSION_FILE_PATH || process.env.VERSION_FILE_PATH;
-        config.versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX || `^\\s*<Version>\\s*(.+?)\\s*</Version>\\s*$`;
+        config.versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX;
 
         let key: string;
         let value: string;
@@ -326,6 +370,11 @@ class Action {
 
         await this.executeAsync("dotnet", params, paramsLogSafe);
 
+    }
+
+    private async gitCheckTagExistsAsync(packageVersion: string): Promise<boolean> {
+        var text = await this.executeAsync("git", ["tag"]);
+        return ("\n"+text.replace("\r\n", "\n")).includes(`\n${packageVersion}\n`);
     }
 
     /** Push a tag on current commit using git tag and git push */

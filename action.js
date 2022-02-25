@@ -31,9 +31,22 @@ class Action {
             let config = this.readInputs();
             // Validate input variables and populate variables if necessary
             this.validateAndPopulateInputs(config);
+            // Dump config to debug log
             const configLogSafe = Object.assign({}, config);
             configLogSafe.nugetKey = "***";
             Log.debug(`[run] Configuration: ${JSON.stringify(configLogSafe, null, 2)}`);
+            const tag = config.tagFormat.replace("*", config.packageVersion);
+            // Check if tag already exists
+            if (config.tagCommit) {
+                const tagExists = yield this.gitCheckTagExistsAsync(tag);
+                Log.debug(`[run] Tag "${tag}" exists: ${tagExists}`);
+                if (tagExists) {
+                    Log.info(`[run] Tag "${tag}" already exists. Will not proceed to publish NuGet package.`);
+                    return;
+                }
+                else
+                    Log.info(`[run] Tag "${tag}" does not exist. Will proceed to publish NuGet package.`);
+            }
             // Check if package exists on NuGet server.
             const nugetPackageExists = yield this.checkNuGetPackageExistsAsync(config.nugetSource, config.packageName, config.packageVersion);
             Log.info(`NuGet package "${config.packageName}" version "${config.packageVersion}" does${nugetPackageExists ? "" : " not"} exists on NuGet server "${config.nugetSource}".`);
@@ -52,7 +65,6 @@ class Action {
             yield this.publishPackageAsync(config.nugetSource, config.nugetKey, config.nugetSearchPath, config.includeSymbols);
             // Commit a tag if publish was successful
             if (config.tagCommit) {
-                const tag = config.tagFormat.replace("*", config.packageVersion);
                 yield this.gitCommitTagAsync(tag);
             }
         });
@@ -69,15 +81,42 @@ class Action {
                 logSafeArgs = args;
             Log.info(`[executeAsync] Executing command: ${command} ${logSafeArgs.join(" ")}`);
             options = options || {};
-            options.stdio = [process.stdin, process.stdout, process.stderr];
+            //options.stdio = <any>[process.stdin, process.stdout, process.stderr];
             return new Promise((resolve, reject) => {
-                var cmd = spawn(command, args, options);
+                // var cmd = spawn(command, args, options);
+                // cmd.on('close', (code: any) => {
+                //     if (code !== 0)
+                //         Log.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
+                //     else
+                //         Log.info(`[executeAsync] Done executing command: ${command} ${logSafeArgs.join(" ")}.`);
+                //     resolve(cmd.stdout.read().toString());
+                // });
+                // cmd.on('error', (err: any) => {
+                //     Log.fail(err);
+                //     reject(err);
+                // });
+                var outBuffer = "";
+                var cmd = require('child_process').execFile(command, args, (err, stdout, stderr) => {
+                    // Node.js will invoke this callback when process terminates.
+                    if (err) {
+                        Log.fail(err);
+                        reject(err);
+                    }
+                    if (stdout) {
+                        outBuffer += stdout;
+                        Log.info(stdout);
+                    }
+                    if (stderr) {
+                        outBuffer += stderr;
+                        Log.warn(stderr);
+                    }
+                });
                 cmd.on('close', (code) => {
                     if (code !== 0)
                         Log.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
                     else
                         Log.info(`[executeAsync] Done executing command: ${command} ${logSafeArgs.join(" ")}.`);
-                    resolve(code);
+                    resolve(outBuffer);
                 });
                 cmd.on('error', (err) => {
                     Log.fail(err);
@@ -96,7 +135,7 @@ class Action {
         config.packageName = process.env.INPUT_PACKAGE_NAME || process.env.PACKAGE_NAME;
         config.packageVersion = process.env.INPUT_VERSION_STATIC || process.env.VERSION_STATIC;
         config.versionFilePath = process.env.INPUT_VERSION_FILE_PATH || process.env.VERSION_FILE_PATH;
-        config.versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX || `^\\s*<Version>\\s*(.+?)\\s*</Version>\\s*$`;
+        config.versionRegex = process.env.INPUT_VERSION_REGEX || process.env.VERSION_REGEX;
         let key;
         let value;
         try {
@@ -272,6 +311,12 @@ class Action {
             let paramsLogSafe = params.concat(["-k", "NUGET_KEY_HIDDEN"]);
             params = params.concat(["-k", nugetKey]);
             yield this.executeAsync("dotnet", params, paramsLogSafe);
+        });
+    }
+    gitCheckTagExistsAsync(packageVersion) {
+        return __awaiter(this, void 0, void 0, function* () {
+            var text = yield this.executeAsync("git", ["tag"]);
+            return ("\n" + text.replace("\r\n", "\n")).includes(`\n${packageVersion}\n`);
         });
     }
     /** Push a tag on current commit using git tag and git push */

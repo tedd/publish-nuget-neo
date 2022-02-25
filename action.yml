@@ -17,7 +17,7 @@ inputs:
     required: false
     default: false
   TAG_COMMIT:
-    description: "Current Git commit should be tagged upon successful upload to NuGet. (Default: false)"
+    description: "Current Git commit should be tagged upon successful upload to NuGet. Note: This will prevent publish if tag already exists. (Default: false)"
     required: false
     default: false
   TAG_FORMAT:

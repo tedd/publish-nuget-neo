@@ -1,0 +1,28 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "pwa-node",
+            "request": "launch",
+            "name": "Launch Program",
+            "skipFiles": [
+                "<node_internals>/**"
+            ],
+            "program": "${workspaceFolder}\\action.ts",
+            "outFiles": [
+                "${workspaceFolder}/**/*.js"
+            ],
+            "env": {
+                "NUGET_KEY": "*",
+                "NUGET_SOURCE": "https://api.nuget.org",
+                "TAG_COMMIT": true,
+                "TAG_EXISTS_SKIP": true,
+                "TAG_FORMAT": "v*",
+                "VERSION_REGEX": "^\\s*<Version>\\s*(.+?)\\s*</Version>\\s*$"
+            }
+        }
+    ]
+}

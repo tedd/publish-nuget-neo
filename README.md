@@ -40,7 +40,7 @@ So I rewrote the whole thing.
     # Add symbols to NuGet package. (Default: false)
     #INCLUDE_SYMBOLS: false
     
-    # Current Git commit should be tagged upon successful upload to NuGet. (Default: false)
+    # Current Git commit should be tagged upon successful upload to NuGet. Note: This will prevent publish if tag already exists. (Default: false)
     #TAG_COMMIT: false
     
     # Name of Git tag. * will be replaced by version number. (Default: v*)
