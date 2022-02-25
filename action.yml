@@ -1,5 +1,5 @@
 name: "Publish to NuGet"
-description: "New implementation of \"Publish NuGet\". Automatic project detection, better error detection and better logging. Drop-in replacement for all the rohith/publish-nuget and brandedoutcast/publish-nuget."
+description: "Automatic project detection, better error detection and better logging. Drop-in replacement for publish-nuget clones."
 
 inputs:
   NUGET_KEY:

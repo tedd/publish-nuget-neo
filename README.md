@@ -24,7 +24,7 @@ So I rewrote the whole thing.
 # Publish
 - name: publish on version change
   id: publish_nuget
-  uses: tedd/publish-nuget-neo@v1.0.0
+  uses: tedd/publish-nuget-neo@v1
   with:
     # NuGet API key to authenticate on NuGet server. 
     # DO NOT PUT KEY DIRECTLY IN HERE.
@@ -75,6 +75,9 @@ So I rewrote the whole thing.
   * If `VERSION_FILE_PATH` is not set then it uses `PROJECT_FILE_PATH`.
   * Default value of `VERSION_REGEX` does a "dumb regex" version extract from `VERSION_FILE_PATH`.
   * If `VERSION_STATIC`is set `VERSION_FILE_PATH`and `VERSION_REGEX` will not be used.
+
+# Note
+The NuGet server must support 
 
 # OUTPUTS
 
