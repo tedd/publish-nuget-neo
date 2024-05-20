@@ -60,7 +60,7 @@ outputs:
         description: "Path to the generated symbols package."
 
 runs:
-    using: "node16"
+    using: "node22"
     main: "action.js"
 
 branding:
