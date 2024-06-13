@@ -14,7 +14,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
  **********************************************************************************/
 const 
 // Import NodeJS modules we will need
-os = require("os"), fs = require("fs"), path = require("path"), https = require("https"), spawn = require("child_process").spawn, 
+os = require("os"), fs = require("fs"), path = require("path"), https = require("https"), 
 // Import additional modules
 validUrl = require('valid-url');
 var LogLevel;
@@ -72,29 +72,17 @@ class Action {
     /** Write OUTPUT variables */
     outputVariable(name, value) {
         Log.debug(`Setting output \"${name}\" to \"${value}\".`);
-        process.stdout.write(`::set-output name=${name}::${value}${os.EOL}`);
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}${os.EOL}`);
     }
     /** Execute command and route stdout and stderr to apps respective channels */
-    executeAsync(command, args = [], logSafeArgs = null, options = null) {
-        return __awaiter(this, void 0, void 0, function* () {
+    executeAsync(command_1) {
+        return __awaiter(this, arguments, void 0, function* (command, args = [], logSafeArgs = null, options = null) {
             if (logSafeArgs === null)
                 logSafeArgs = args;
             Log.info(`[executeAsync] Executing command: ${command} ${logSafeArgs.join(" ")}`);
             options = options || {};
             //options.stdio = <any>[process.stdin, process.stdout, process.stderr];
             return new Promise((resolve, reject) => {
-                // var cmd = spawn(command, args, options);
-                // cmd.on('close', (code: any) => {
-                //     if (code !== 0)
-                //         Log.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
-                //     else
-                //         Log.info(`[executeAsync] Done executing command: ${command} ${logSafeArgs.join(" ")}.`);
-                //     resolve(cmd.stdout.read().toString());
-                // });
-                // cmd.on('error', (err: any) => {
-                //     Log.fail(err);
-                //     reject(err);
-                // });
                 var outBuffer = "";
                 var cmd = require('child_process').execFile(command, args, (err, stdout, stderr) => {
                     // Node.js will invoke this callback when process terminates.
@@ -236,8 +224,6 @@ class Action {
                     }
                     if (res.statusCode != 200) {
                         throw new Error(`NuGet server returned unexpected HTTP status code ${res.statusCode}: ${res.statusMessage} Assuming failure.`);
-                        packageVersionExists(false);
-                        return;
                     }
                     res.on('data', chunk => { data += chunk; });
                     res.on('end', () => {
