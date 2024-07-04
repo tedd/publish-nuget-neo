@@ -1,4 +1,3 @@
-import { kStringMaxLength } from "buffer";
 import { SpawnOptionsWithStdioTuple, StdioPipe } from "child_process";
 import { IncomingMessage } from "http";
 
@@ -12,7 +11,6 @@ const
     fs = require("fs"),
     path = require("path"),
     https = require("https"),
-    spawn = require("child_process").spawn,
     // Import additional modules
     validUrl = require('valid-url');
 
@@ -103,7 +101,7 @@ class Action {
     /** Write OUTPUT variables */
     private outputVariable(name: string, value: any): void {
         Log.debug(`Setting output \"${name}\" to \"${value}\".`);
-        process.stdout.write(`::set-output name=${name}::${value}${os.EOL}`)
+        fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}=${value}${os.EOL}`);
     }
 
     /** Execute command and route stdout and stderr to apps respective channels */
@@ -117,18 +115,6 @@ class Action {
         //options.stdio = <any>[process.stdin, process.stdout, process.stderr];
 
         return new Promise<string>((resolve, reject) => {
-            // var cmd = spawn(command, args, options);
-            // cmd.on('close', (code: any) => {
-            //     if (code !== 0)
-            //         Log.fail(`Child process exited with code ${code}. Any code != 0 indicates an error.`);
-            //     else
-            //         Log.info(`[executeAsync] Done executing command: ${command} ${logSafeArgs.join(" ")}.`);
-            //     resolve(cmd.stdout.read().toString());
-            // });
-            // cmd.on('error', (err: any) => {
-            //     Log.fail(err);
-            //     reject(err);
-            // });
 
             var outBuffer = "";
             var cmd = require('child_process').execFile(command, args, (err: any, stdout: any, stderr: any) => {
@@ -287,8 +273,6 @@ class Action {
 
                 if (res.statusCode != 200) {
                     throw new Error(`NuGet server returned unexpected HTTP status code ${res.statusCode}: ${res.statusMessage} Assuming failure.`);
-                    packageVersionExists(false);
-                    return;
                 }
 
                 res.on('data', chunk => { data += chunk })
