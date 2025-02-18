@@ -1,68 +1,76 @@
 name: "Publish to NuGet"
-description: "Automatic project detection, better error detection and better logging. Drop-in replacement for publish-nuget clones."
+description: "Automatic project detection, multi-package support, better error detection and improved logging. Drop-in replacement for publish-nuget clones."
 
 inputs:
   NUGET_KEY:
-    description: "NuGet API key to authenticate on NuGet server. DO NOT PUT KEY DIRECTLY IN HERE. Use Secrets function in GitHub for example, i.e. dollarsign{{secrets.YOUR_NUGET_API_KEY}}."
+    description: "NuGet API key to authenticate on the NuGet server. DO NOT PUT THE KEY DIRECTLY HERE. Use GitHub Secrets (e.g., \${{ secrets.YOUR_NUGET_API_KEY }}) instead."
     required: true
   PROJECT_FILE_PATH:
-    description: "Full path to project file. (Example: src/MyNuGetProject/MyNuGetProject.csproj) (Default: Will scan all .csproj/.fsproj/.vbproj files and use first it finds that has GeneratePackageOnBuild set to true.)"
+    description: >-
+      Full path to a project file or a JSON array of project file paths.
+      (Examples: `src/MyNuGetProject/MyNuGetProject.csproj` or
+      `["src/Project1/Project1.csproj", "src/Project2/Project2.csproj"]`).
+      If not specified, the action will auto-discover a project (or projects, if PUBLISH_ALL_PROJECTS is true)
+      that contains `<GeneratePackageOnBuild>true</GeneratePackageOnBuild>`.
     required: false
+  PUBLISH_ALL_PROJECTS:
+    description: "If set to true, the action ignores PROJECT_FILE_PATH and auto-discovers and publishes all projects with `<GeneratePackageOnBuild>true</GeneratePackageOnBuild>`."
+    required: false
+    default: false
   NUGET_SOURCE:
-    description: "URL to NuGet server. (Default: https://api.nuget.org)"
+    description: "URL to the NuGet server. (Default: https://api.nuget.org)"
     required: false
     default: "https://api.nuget.org"
   INCLUDE_SYMBOLS:
-    description: "Add symbols to NuGet package. (Default: false)"
+    description: "Add symbols to the NuGet package. (Default: false)"
     required: false
     default: false
   TAG_COMMIT:
-    description: "Current Git commit should be tagged upon successful upload to NuGet. Note: This will prevent publish if tag already exists. (Default: false)"
+    description: "Tag the current Git commit upon successful upload. (This will prevent publish if the tag already exists.) (Default: false)"
     required: false
     default: false
   TAG_FORMAT:
-    description: "Name of Git tag. * will be replaced by version number. (Default: v*)"
+    description: "Git tag format. Use * as a placeholder for the version number. (Default: v*)"
     required: false
     default: "v*"
   PACKAGE_NAME:
-    description: "NuGet package name. This is used for checking NuGet server if package version already exists. (Default: name extracted from PROJECT_FILE_PATH)"
+    description: "NuGet package name used for checking if the package version already exists on the NuGet server. (Default: extracted from PROJECT_FILE_PATH)"
     required: false
   VERSION_FILE_PATH:
-    description: "Path to file containing version number to extract using regex. (Default: $PROJECT_FILE_PATH)"
+    description: "Path to the file containing the version number to extract using regex. (Default: same as PROJECT_FILE_PATH)"
     required: false
   VERSION_REGEX:
-    description: "Regex pattern to extract version info in a capturing group. (Default: ^\\s*<Version>(.*)<\\/Version>\\s*$)"
+    description: "Regex pattern with a capturing group to extract version info. (Default: ^\\s*<Version>\\s*(.*?)\\s*<\\/Version>\\s*$)"
     required: false
     default: "^\\s*<Version>\\s*(.*?)\\s*<\\/Version>\\s*$"
   VERSION_STATIC:
-      description: "Useful with external providers like Nerdbank.GitVersioning where you could for example set it to variable (dollar){{env.GitBuildVersionSimple}}. Ignores VERSION_FILE_PATH & VERSION_REGEX."
-      required: false
+    description: "Provide a static version instead of extracting from a file. Overrides VERSION_FILE_PATH and VERSION_REGEX. (e.g., \${{ env.GitBuildVersionSimple }})"
+    required: false
   REBUILD_PROJECT:
-    description: "Rebuild project in release mode? You may turn this off if you have built project in previous step. (default: true)"
+    description: "Rebuild the project in release mode before packaging. (Default: true)"
     required: false
     default: true
   LOG_LEVEL:
-    description: "Log level (DEBUG, INFO, WARN). (default: DEBUG)"
+    description: "Log level for debugging (DEBUG, INFO, WARN). (Default: DEBUG)"
     required: false
     default: DEBUG
-  
 
 outputs:
-    VERSION:
-        description: "Version of the associated git tag."
-    PACKAGE_NAME:
-        description: "Name of the NuGet package generated."
-    PACKAGE_PATH:
-        description: "Path to the generated NuGet package."
-    SYMBOLS_PACKAGE_NAME:
-        description: "Name of the symbols package generated."
-    SYMBOLS_PACKAGE_PATH:
-        description: "Path to the generated symbols package."
+  VERSION:
+    description: "Version of the associated git tag (if TAG_COMMIT is true)."
+  PACKAGE_NAME:
+    description: "Name of the generated NuGet package."
+  PACKAGE_PATH:
+    description: "Path to the generated NuGet package."
+  SYMBOLS_PACKAGE_NAME:
+    description: "Name of the generated symbols package (if INCLUDE_SYMBOLS is true)."
+  SYMBOLS_PACKAGE_PATH:
+    description: "Path to the generated symbols package (if INCLUDE_SYMBOLS is true)."
 
 runs:
-    using: "node20"
-    main: "action.js"
+  using: "node20"
+  main: "action.js"
 
 branding:
-    icon: package
-    color: blue
+  icon: package
+  color: blue
