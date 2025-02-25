@@ -105,8 +105,11 @@ class Action {
                 const versionFile = config.versionFilePath || projFile;
                 this.validateFilePath(versionFile, "VERSION_FILE_PATH");
                 packageVersion = this.extractRegexFromFile(versionFile, new RegExp(config.versionRegex, "im"));
-                if (!packageVersion)
+                if (!packageVersion) {
                     Log.fail(`Unable to extract version from "${versionFile}" using regex "${config.versionRegex}".`);
+                    const fileContent = fs.readFileSync(versionFile);
+                    Log.fail(`File content: ${fileContent}`);
+                }
                 Log.debug(`Extracted version "${packageVersion}" from "${versionFile}"`);
             }
 
