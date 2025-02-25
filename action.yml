@@ -3,7 +3,7 @@ description: "Automatic project detection, multi-package support, better error d
 
 inputs:
   NUGET_KEY:
-    description: "NuGet API key to authenticate on the NuGet server. DO NOT PUT THE KEY DIRECTLY HERE. Use GitHub Secrets (e.g., \${{ secrets.YOUR_NUGET_API_KEY }}) instead."
+    description: "NuGet API key to authenticate on the NuGet server. DO NOT PUT THE KEY DIRECTLY HERE. Use GitHub Secrets (e.g., ${{secrets.YOUR_NUGET_API_KEY}}) instead."
     required: true
   PROJECT_FILE_PATH:
     description: >-
