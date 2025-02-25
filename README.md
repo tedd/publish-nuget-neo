@@ -58,8 +58,8 @@ Below is an example GitHub Action workflow configuration:
     # Path to a file containing the version number. (Default: uses the project file)
     # VERSION_FILE_PATH:
 
-    # Regex pattern to extract the version info. (Default: ^s*<Version>(.*)</Version>s*$)
-    VERSION_REGEX: ^s*<Version>(.*)</Version>s*$
+    # Regex pattern to extract the version info. (Default: ^\s*<Version>(.*)</Version>\s*$)
+    VERSION_REGEX: ^\s*<Version>(.*)</Version>\s*$
 
     # Rebuild project in release mode? (Default: true)
     REBUILD_PROJECT: true
