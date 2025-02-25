@@ -3,7 +3,7 @@ description: "Automatic project detection, multi-package support, better error d
 
 inputs:
   NUGET_KEY:
-    description: "NuGet API key to authenticate on the NuGet server. DO NOT PUT THE KEY DIRECTLY HERE. Use GitHub Secrets (e.g., ${{secrets.YOUR_NUGET_API_KEY}}) instead."
+    description: "NuGet API key to authenticate on the NuGet server. DO NOT PUT THE KEY DIRECTLY HERE. Use GitHub Secrets (e.g., dollarsign{{secrets.YOUR_NUGET_API_KEY}}) instead."
     required: true
   PROJECT_FILE_PATH:
     description: >-
@@ -44,7 +44,7 @@ inputs:
     required: false
     default: "^\\s*<Version>\\s*(.*?)\\s*<\\/Version>\\s*$"
   VERSION_STATIC:
-    description: "Provide a static version instead of extracting from a file. Overrides VERSION_FILE_PATH and VERSION_REGEX. (e.g., ${{env.GitBuildVersionSimple}})"
+    description: "Provide a static version instead of extracting from a file. Overrides VERSION_FILE_PATH and VERSION_REGEX. (e.g., dollarsign{{env.GitBuildVersionSimple}})"
     required: false
   REBUILD_PROJECT:
     description: "Rebuild the project in release mode before packaging. (Default: true)"
