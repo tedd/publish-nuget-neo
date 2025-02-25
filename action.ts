@@ -258,16 +258,16 @@ class Action {
     /** Validates the user input variables from GitHub Actions and populates any additional variables */
     private validateAndPopulateInputs(config: IActionConfig): void {
         if (!config.nugetKey)
-            Log.fail(`NuGet key must be specified.`);
+            Log.fail(`[validateAndPopulateInputs] NuGet key must be specified.`);
 
         if (!validUrl.isUri(config.nugetSource))
-            Log.fail(`NuGet source "${config.nugetSource}" is not a valid URL.`);
+            Log.fail(`[validateAndPopulateInputs]NuGet source "${config.nugetSource}" is not a valid URL.`);
 
         if (!config.projectFilePath) {
             // If no project is specified, attempt to use the first one found.
             config.projectFilePath = ProjectLocator.GetFirstNuGetProject("./");
             if (!config.projectFilePath) {
-                Log.fail(`No project file specified. Attempted to resolve project file by recursive search, but could not find any .csproj/.fsproj/.vbproj files with "<GeneratePackageOnBuild>true</GeneratePackageOnBuild>".`);
+                Log.fail(`[validateAndPopulateInputs] No project file specified. Attempted to resolve project file by recursive search, but could not find any .csproj/.fsproj/.vbproj files with "<GeneratePackageOnBuild>true</GeneratePackageOnBuild>".`);
             }
             Log.info(`No project file path specified. Did a recursive search and found: ${config.projectFilePath}`);
         } else {
@@ -288,29 +288,32 @@ class Action {
             if (typeof config.versionFilePath === "string") {
                 this.validateFilePath(config.versionFilePath, "VERSION_FILE_PATH");
             } else {
-                Log.fail("VERSION_FILE_PATH must be a file path, not an array.");
+                Log.fail("[validateAndPopulateInputs] VERSION_FILE_PATH must be a file path, not an array.");
             }
             if (!config.versionRegex)
-                Log.fail(`VERSION_REGEX must be specified.`);
+                Log.fail(`[validateAndPopulateInputs] VERSION_REGEX must be specified.`);
             let versionRegex: RegExp;
             try {
                 versionRegex = new RegExp(config.versionRegex, "im");
             } catch (e) {
-                Log.fail(`Version regex "${config.versionRegex}" is not a valid regular expression: ${e.message}`);
+                Log.fail(`[validateAndPopulateInputs] Version regex "${config.versionRegex}" is not a valid regular expression: ${e.message}`);
             }
             Log.debug(`[validateAndPopulateInputs] Version regex is valid: "${config.versionRegex}"`);
+            
+            /*
             const version = this.extractRegexFromFile(config.versionFilePath as string, versionRegex);
             if (!version) {
-                Log.fail(`Unable to extract version from file "${config.versionFilePath}" using the regex pattern "${config.versionRegex}". Please ensure that the file contains a valid version string matching the pattern.`);
+                Log.fail(`[validateAndPopulateInputs] Unable to extract version from file "${config.versionFilePath}" using the regex pattern "${config.versionRegex}". Please ensure that the file contains a valid version string matching the pattern.`);
             }
             Log.debug(`[validateAndPopulateInputs] Version extracted from "${config.versionFilePath}": "${version}"`);
             config.packageVersion = version;
+            */
         }
 
         // Check that we have a valid tag format
         if (config.tagCommit) {
             if (!config.tagFormat)
-                Log.fail(`Tag format must be specified.`);
+                Log.fail(`[validateAndPopulateInputs]Tag format must be specified.`);
             if (!config.tagFormat.includes("*"))
                 Log.fail(`Tag format "${config.tagFormat}" does not contain *.`);
             Log.debug("[validateAndPopulateInputs] Valid tag format: %s", config.tagFormat);
