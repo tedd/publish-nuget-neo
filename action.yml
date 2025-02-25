@@ -44,7 +44,7 @@ inputs:
     required: false
     default: "^\\s*<Version>\\s*(.*?)\\s*<\\/Version>\\s*$"
   VERSION_STATIC:
-    description: "Provide a static version instead of extracting from a file. Overrides VERSION_FILE_PATH and VERSION_REGEX. (e.g., \${{ env.GitBuildVersionSimple }})"
+    description: "Provide a static version instead of extracting from a file. Overrides VERSION_FILE_PATH and VERSION_REGEX. (e.g., ${{env.GitBuildVersionSimple}})"
     required: false
   REBUILD_PROJECT:
     description: "Rebuild the project in release mode before packaging. (Default: true)"
