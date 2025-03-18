@@ -18,7 +18,7 @@ inputs:
     required: false
     default: false
   SOLUTION_FILE_PATH:
-    description: "Path to solution to build. This may speed up build time as it will parallel build."
+    description: "Path to solution to build."
     required: false
     default: ""    
   NUGET_SOURCE:

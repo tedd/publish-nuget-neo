@@ -107,7 +107,7 @@ class Action {
             }
             // Rebuild project if specified.
             if (config.rebuildProject)
-                await this.rebuildProjectAsync(projFile, null, config.includeSymbols);
+                await this.rebuildProjectAsync(projFile, nugetSearchPath, config.includeSymbols);
             this.outputVariable("PACKAGE_VERSION", packageVersion);
             // Package project.
             await this.packageProjectAsync(projFile, nugetSearchPath, config.includeSymbols);
@@ -336,10 +336,10 @@ class Action {
             params.push("-p:SymbolPackageFormat=snupkg");
         }
         params.push(projectFilePath);
-        // if (nugetSearchPath) {
-        // params.push("-o");
-        // params.push(nugetSearchPath);
-        // }
+        if (nugetSearchPath) {
+            params.push("-o");
+            params.push(nugetSearchPath);
+        }
         await this.executeAsync("dotnet", params);
     }
     /** Package the project using dotnet pack */
@@ -356,10 +356,10 @@ class Action {
             params.push("-p:SymbolPackageFormat=snupkg");
         }
         params.push(projectFilePath);
-        // if (nugetSearchPath) {
-        // params.push("-o");
-        // params.push(nugetSearchPath);
-        // }
+        if (nugetSearchPath) {
+            params.push("-o");
+            params.push(nugetSearchPath);
+        }
         await this.executeAsync("dotnet", params);
     }
     /** Publish package to NuGet server using dotnet nuget push */

@@ -150,7 +150,7 @@ class Action {
 
             // Rebuild project if specified.
             if (config.rebuildProject)
-                await this.rebuildProjectAsync(projFile, null, config.includeSymbols);
+                await this.rebuildProjectAsync(projFile, nugetSearchPath, config.includeSymbols);
 
             this.outputVariable("PACKAGE_VERSION", packageVersion);
 
@@ -400,10 +400,10 @@ class Action {
             params.push("-p:SymbolPackageFormat=snupkg");
         }
         params.push(projectFilePath);
-		// if (nugetSearchPath) {
-			// params.push("-o");
-			// params.push(nugetSearchPath);
-		// }
+		if (nugetSearchPath) {
+			params.push("-o");
+			params.push(nugetSearchPath);
+		}
 
         await this.executeAsync("dotnet", params);
     }
@@ -424,10 +424,10 @@ class Action {
             params.push("-p:SymbolPackageFormat=snupkg");
         }
         params.push(projectFilePath);
-		// if (nugetSearchPath) {
-			// params.push("-o");
-			// params.push(nugetSearchPath);
-		// }
+		if (nugetSearchPath) {
+			params.push("-o");
+			params.push(nugetSearchPath);
+		}
 
         await this.executeAsync("dotnet", params);
     }
