@@ -375,7 +375,7 @@ class Action {
     /** Rebuild the project using dotnet build */
     private async rebuildProjectAsync(projectFilePath: string): Promise<void> {
         Log.info(`[rebuildProjectAsync] Rebuilding project: "${projectFilePath}"`);
-        await this.executeAsync("dotnet", ["build", "-c", "Release", projectFilePath]);
+        await this.executeAsync("dotnet", ["build", "-m", "-c", "Release", projectFilePath]);
     }
 
     /** Package the project using dotnet pack */
@@ -388,7 +388,7 @@ class Action {
           .forEach((fn: string) => fs.unlinkSync(`${nugetSearchPath}/${fn}`));
 
         // Package new
-        let params = ["pack", "-c", "Release"];
+        let params = ["pack", "-m", "-c", "Release"];
         if (includeSymbols) {
             params.push("-p:IncludeSymbols=true");
             params.push("-p:SymbolPackageFormat=snupkg");
