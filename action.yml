@@ -17,6 +17,10 @@ inputs:
     description: "If set to true, the action ignores PROJECT_FILE_PATH and auto-discovers and publishes all projects with `<GeneratePackageOnBuild>true</GeneratePackageOnBuild>`."
     required: false
     default: false
+  SOLUTION_FILE_PATH:
+    description: "Path to solution to build. This may speed up build time as it will parallel build."
+    required: false
+    default: ""    
   NUGET_SOURCE:
     description: "URL to the NuGet server. (Default: https://api.nuget.org)"
     required: false
