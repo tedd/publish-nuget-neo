@@ -454,7 +454,7 @@ class Action {
 	
     private async publishPackageSpecificAsync(nuGetSource: string, nugetKey: string, packagePath: string, includeSymbols: boolean): Promise<void> {
         Log.info(`[publishPackageAsync] Publishing package "${packagePath}"`);
-        let params = ["dotnet", "nuget", "push", packagePath, "-s", `${nuGetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output"];
+        let params = ["nuget", "push", packagePath, "-s", `${nuGetSource}/v3/index.json`, "--skip-duplicate", "--force-english-output"];
         if (!includeSymbols)
             params.push("--no-symbols");
 
